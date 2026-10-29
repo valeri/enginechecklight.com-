@@ -4,6 +4,7 @@ import { handle } from '../src/app.js';
 import { memoryStore } from '../src/store.js';
 import { MOCK_DIAGNOSIS } from '../src/diagnose.js';
 import { describeCode } from '../src/dtc.js';
+import { buildDeps } from '../src/runtime.js';
 
 const BASE = 'https://enginechecklight.com';
 
@@ -184,4 +185,13 @@ test('code lookup and unknown routes', async () => {
   assert.equal(r.body.code, 'P0420');
   assert.equal((await call('/api/codes/B143C%3A11')).body.code, 'B143C-11');
   assert.equal((await call('/api/nope')).status, 404);
+});
+
+test('an empty or blank ANTHROPIC_API_KEY means demo mode', async () => {
+  for (const key of [undefined, '', '   ']) {
+    const deps = buildDeps({ ANTHROPIC_API_KEY: key });
+    assert.equal(deps.env.LIVE, '0', JSON.stringify(key));
+    const r = await deps.diagnose({ code: describeCode('P0301'), image: null });
+    assert.equal(r.diagnosis.summary, MOCK_DIAGNOSIS.summary);
+  }
 });

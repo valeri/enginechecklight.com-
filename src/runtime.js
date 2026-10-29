@@ -3,8 +3,8 @@ import { createDiagnoser, createScanner } from './diagnose.js';
 import { createEmailSender } from './email.js';
 
 export function buildDeps(env) {
-  const apiKey = env.ANTHROPIC_API_KEY;
-  // No API key yet (or MOCK=1): run in demo mode with a fixed sample answer.
+  const apiKey = env.ANTHROPIC_API_KEY?.trim() || undefined;
+  // No API key yet, an empty one from .env (or MOCK=1): run in demo mode with a fixed sample answer.
   const mock = env.MOCK === '1' || !apiKey;
   return {
     env: { ...env, LIVE: mock ? '0' : '1' },
