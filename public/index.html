@@ -154,6 +154,14 @@ a { color: inherit; }
 .banner.demo { background: var(--sunken); }
 .ok-box { background: var(--sunken); border-radius: var(--r); padding: 16px; text-align: left; }
 .foot { margin-top: 36px; font-size: 12px; color: var(--muted); text-align: center; }
+.install { display: grid; grid-template-columns: 44px 1fr auto; gap: 12px; align-items: center; margin-bottom: 18px; border-color: var(--accent); }
+.install img { width: 44px; height: 44px; border-radius: 10px; display: block; }
+.install b { display: block; }
+.install .note { margin: 2px 0 0; }
+.install .x { border: 0; background: none; color: var(--muted); cursor: pointer; font-size: 18px; padding: 4px 6px; align-self: start; }
+.install .primary { grid-column: 1 / -1; padding: 12px; font-size: 16px; }
+.install ol { grid-column: 1 / -1; margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+.install ol svg { vertical-align: -3px; color: var(--accent); }
 .toast { position: fixed; left: 50%; top: calc(14px + env(safe-area-inset-top, 0px)); transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 10px 16px; border-radius: 999px; font-size: 14px; font-weight: 600; z-index: 10; max-width: calc(100% - 32px); text-align: center; }
 </style>
 </head>
@@ -190,6 +198,8 @@ const T = {
     signedAs: e => `Signed in as ${e}`, signOut: "Sign out", loginOk: "You're signed in.", loginBad: "That sign-in link has expired or was already used. Ask for a new one.", loginOff: "Sign-in isn't available yet.",
     badEmail: "Enter a valid email address.", tooMany: "Too many tries. Try again later.",
     privacy: "Privacy", disclaimerFoot: "AI estimate, not a replacement for a mechanic.",
+    installT: "Install EngineCheckLight", installS: "Add it to your home screen. It opens like an app, no app store needed.", installBtn: "Install the app", installLink: "Install app", close: "Close",
+    iosSteps: ["Tap the Share button {share} at the bottom (or top) of Safari", "Scroll down and choose “Add to Home Screen”", "Tap “Add”. The icon appears on your home screen."], installed: "App installed. Find it on your home screen.",
     errors: { quota: "You've used today's free checks.", failed: "The diagnosis didn't work this time. Your free check was not used. Try again.", scan_failed: "Couldn't read that photo. Try again.", network: "No connection. Check your internet and try again.", photoBad: "That photo could not be read. Try a JPEG or PNG." },
     sys: { P: "Powertrain", C: "Chassis", B: "Body", U: "Network" }, generic: "generic", maker: "maker-specific", fault: "fault", ftbUnknown: "failure type",
     codeExplained: "Code explained", cxSystem: "System", cxKind: "Type", cxTitle: "Meaning", cxModule: "Module", cxComponent: "Component", cxLook: "Where to look", unsure: "Not fully sure",
@@ -222,6 +232,8 @@ const T = {
     signedAs: e => `შესული ხარ როგორც ${e}`, signOut: "გასვლა", loginOk: "შესული ხარ.", loginBad: "შესვლის ბმული ვადაგასულია ან უკვე გამოყენებულია. მოითხოვე ახალი.", loginOff: "შესვლა ჯერ მიუწვდომელია.",
     badEmail: "შეიყვანე სწორი ელფოსტა.", tooMany: "ძალიან ბევრი მცდელობა. სცადე მოგვიანებით.",
     privacy: "კონფიდენციალურობა", disclaimerFoot: "AI-ის შეფასება, ხელოსანს არ ცვლის.",
+    installT: "დააყენე EngineCheckLight", installS: "დაამატე ტელეფონის მთავარ ეკრანზე. გაიხსნება როგორც აპი, მაღაზიიდან გადმოწერა არ სჭირდება.", installBtn: "აპის დაყენება", installLink: "აპად დაყენება", close: "დახურვა",
+    iosSteps: ["დააჭირე Share ღილაკს {share} Safari-ის ქვემოთ (ან ზემოთ)", "ჩამოსქროლე და აირჩიე „Add to Home Screen“ (მთავარ ეკრანზე დამატება)", "დააჭირე „Add“ (დამატება). აიკონი გამოჩნდება მთავარ ეკრანზე."], installed: "აპი დაყენდა. იპოვი მთავარ ეკრანზე.",
     errors: { quota: "დღევანდელი უფასო შემოწმებები გამოიყენე.", failed: "დიაგნოსტიკა ამჯერად ვერ მოხერხდა. უფასო შემოწმება არ დაგეხარჯა. სცადე თავიდან.", scan_failed: "ფოტო ვერ წავიკითხე. სცადე თავიდან.", network: "კავშირი არ არის. შეამოწმე ინტერნეტი და სცადე თავიდან.", photoBad: "ფოტო ვერ წავიკითხე. სცადე JPEG ან PNG." },
     sys: { P: "ძრავი/ტრანსმისია", C: "შასი", B: "ძარა", U: "ქსელი" }, generic: "ზოგადი", maker: "მწარმოებლის", fault: "ხარვეზი", ftbUnknown: "ხარვეზის ტიპი",
     codeExplained: "კოდის გაშიფვრა", cxSystem: "სისტემა", cxKind: "ტიპი", cxTitle: "მნიშვნელობა", cxModule: "ბლოკი", cxComponent: "კომპონენტი", cxLook: "სად მოძებნო", unsure: "ზუსტად დარწმუნებული არ არის",
@@ -358,6 +370,7 @@ const S = {
   scan: { busy: false, codes: null, msg: "" },
   auth: { email: "", sent: false, devLink: "", busy: false, err: "" },
   wait: { email: "", done: false, busy: false, err: "" },
+  install: { hidden: LS.get("ecl-install-hidden", false), help: false },
 };
 if (!T[S.lang]) S.lang = "en";
 const t = k => T[S.lang][k];
@@ -378,6 +391,7 @@ const icons = {
   user: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>',
   check: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg>',
   warn: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17v.5"/></svg>',
+  share: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-label="Share"><path d="M12 3v12M8 7l4-4 4 4M6 11H5v10h14V11h-1"/></svg>',
   stop: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M8 3h8l5 5v8l-5 5H8l-5-5V8z"/><path d="M9 9l6 6M15 9l-6 6"/></svg>',
 };
 
@@ -431,6 +445,41 @@ function toast(msg) {
   clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.hidden = true; }, 3800);
 }
 
+// ---------- install as an app ----------
+// Chrome, Edge and Samsung Internet fire beforeinstallprompt: we keep it and show our own button.
+// iOS has no install API, so there we show the Share → Add to Home Screen steps instead.
+let installPrompt = null;
+const isStandalone = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+const canInstall = () => !isStandalone() && (installPrompt || isIOS);
+window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); installPrompt = e; if (!S.loading) render(true); });
+window.addEventListener("appinstalled", () => { installPrompt = null; toast(t("installed")); if (!S.loading) render(true); });
+
+async function installApp() {
+  if (installPrompt) {
+    const p = installPrompt;
+    p.prompt();
+    const { outcome } = await p.userChoice;
+    if (outcome === "accepted") installPrompt = null;
+    render(true); return;
+  }
+  // iOS: open the banner with the steps.
+  S.install = { hidden: false, help: true }; LS.set("ecl-install-hidden", false);
+  if (S.view !== "home") go("home"); else render(true);
+}
+
+function installBanner() {
+  if (!canInstall() || S.install.hidden) return "";
+  const steps = S.install.help && !installPrompt
+    ? `<ol>${t("iosSteps").map(x => `<li>${esc(x).replace("{share}", icons.share)}</li>`).join("")}</ol>`
+    : `<button class="primary" data-act="install">${t("installBtn")}</button>`;
+  return `<div class="panel install" role="region" aria-label="${t("installT")}">
+    <img src="/icons/icon-192.png" alt="">
+    <div><b>${t("installT")}</b><p class="note">${t("installS")}</p></div>
+    <button class="x" data-act="installhide" aria-label="${t("close")}">✕</button>
+    ${steps}</div>`;
+}
+
 // ---------- views ----------
 function topbar(showBack) {
   const u = S.me.user;
@@ -444,11 +493,12 @@ function topbar(showBack) {
     </div>${acct}</div></div>`;
 }
 const demoBanner = () => S.me.features.live ? "" : `<div class="banner demo">${t("demo")}</div>`;
-const footer = () => `<p class="foot">${t("disclaimerFoot")} · <a href="/privacy.html${S.lang === "ka" ? "#ka" : ""}">${t("privacy")}</a></p>`;
+const footer = () => `<p class="foot">${t("disclaimerFoot")} · <a href="/privacy.html${S.lang === "ka" ? "#ka" : ""}">${t("privacy")}</a>${canInstall() ? ` · <button class="link" data-act="install" style="padding:0;font-size:inherit">${t("installLink")}</button>` : ""}</p>`;
 
 function viewHome() {
   const list = S.history;
   return `${topbar(false)}<p class="tag">${t("tagline")}</p>
+  ${installBanner()}
   ${demoBanner()}
   <div class="stack">
   ${list.length ? `<div class="label">${t("recent")}</div>` + list.map((h, i) => `<button class="panel hist" data-open="${i}">
@@ -695,6 +745,8 @@ app.addEventListener("click", async e => {
   const act = el.dataset.act;
   if (act === "rmphoto") { if (S.form.photoUrl) URL.revokeObjectURL(S.form.photoUrl); S.form.photo = null; S.form.photoUrl = null; render(true); return; }
   if (act === "diagnose") { diagnose(); return; }
+  if (act === "install") { installApp(); return; }
+  if (act === "installhide") { S.install = { hidden: true, help: false }; LS.set("ecl-install-hidden", true); render(true); return; }
   if (act === "scanlocked") { S.notice = t("proOnly"); go("paywall"); return; }
   if (act === "authreset") { S.auth = { email: S.auth.email, sent: false, devLink: "", busy: false, err: "" }; render(true); return; }
   if (act === "logout") {
@@ -735,7 +787,8 @@ app.addEventListener("change", e => {
   if (login === "expired") { S.view = "account"; render(); toast(t("loginBad")); }
 })();
 
-if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("/sw.js").catch(() => {});
+// localhost too, so the install button can be tested with npm run dev.
+if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) navigator.serviceWorker.register("/sw.js").catch(() => {});
 </script>
 </body>
 </html>
