@@ -125,6 +125,18 @@ button, input, textarea { font: inherit; color: inherit; }
 .cost { font-family: var(--display); font-size: 44px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
 .cost small { font-size: 20px; color: var(--muted); font-weight: 600; margin-right: 4px; }
 ul.list { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+.cx-code { font-family: var(--mono); font-size: 30px; font-weight: 700; letter-spacing: .06em; line-height: 1.1; margin-bottom: 6px; }
+.cx-code span { color: var(--accent); }
+.cx-row { display: grid; grid-template-columns: 110px 1fr; gap: 10px; padding-block: 8px; border-bottom: 1px solid var(--line); font-size: 14px; }
+.cx-row .k { color: var(--muted); }
+.cx-row .v { min-width: 0; overflow-wrap: anywhere; }
+.cx-ftb { background: var(--accent-soft); border-radius: 10px; padding: 10px 12px; margin-top: 12px; font-size: 14px; }
+.cx-ftb b { font-family: var(--mono); color: var(--accent); }
+.cx-ftb p { margin: 4px 0 0; }
+.cx-what { margin: 12px 0 0; }
+.cx-look { margin-top: 12px; }
+.cx-look .label { margin-bottom: 6px; }
+.unsure { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; background: var(--sunken); color: var(--warn); border-radius: 5px; padding: 2px 7px; margin-left: 8px; vertical-align: middle; }
 .disc { margin-top: 28px; font-size: 12px; color: var(--muted); }
 
 .pw { text-align: center; }
@@ -158,11 +170,11 @@ const T = {
     car: "Your car", make: "Make", model: "Model", year: "Year", engine: "Engine (optional)",
     makePh: "e.g. Toyota", modelPh: "e.g. Prius", yearPh: "2016", enginePh: "e.g. 1.8 hybrid",
     what: "What is happening?", what_hint: "Add any of these. More detail gives a better answer.",
-    code: "Error code", codeHint: "e.g. P0301", photo: "Photo", takePhoto: "Choose photo", sound: "Sound",
+    code: "Error code", codeHint: "e.g. P0301 or B143C-11", photo: "Photo", takePhoto: "Choose photo", sound: "Sound",
     soundType: "What does it sound like?", soundWhen: "When does it happen?", describe: "Describe it",
     textHint: "e.g. Car shakes at 100 km/h, worse when braking", diagnose: "Diagnose", back: "Back",
     thinking: "Checking your car…", thinkingSub: "This takes 10–40 seconds.",
-    needInput: "Add a code, photo, sound or description first.", badCode: "That code doesn't look right. Codes look like P0301: one letter and four characters.",
+    needInput: "Add a code, photo, sound or description first.", badCode: "That code doesn't look right. Codes look like P0301 or B143C-11: one letter, four characters and an optional 2-character failure type.",
     safe_yes: "Safe to drive", safe_short_distance: "Drive only a short distance", safe_no: "Do not drive",
     sev_low: "Low", sev_medium: "Medium", sev_high: "High", sev_critical: "Critical", severity: "severity",
     causes: "Most likely causes", cost: "Fair repair price", checks: "Checks you can do", questions: "Answer these for a better result",
@@ -179,7 +191,8 @@ const T = {
     badEmail: "Enter a valid email address.", tooMany: "Too many tries. Try again later.",
     privacy: "Privacy", disclaimerFoot: "AI estimate, not a replacement for a mechanic.",
     errors: { quota: "You've used today's free checks.", failed: "The diagnosis didn't work this time. Your free check was not used. Try again.", scan_failed: "Couldn't read that photo. Try again.", network: "No connection. Check your internet and try again.", photoBad: "That photo could not be read. Try a JPEG or PNG." },
-    sys: { P: "Powertrain", C: "Chassis", B: "Body", U: "Network" }, generic: "generic", maker: "maker-specific", fault: "fault",
+    sys: { P: "Powertrain", C: "Chassis", B: "Body", U: "Network" }, generic: "generic", maker: "maker-specific", fault: "fault", ftbUnknown: "failure type",
+    codeExplained: "Code explained", cxSystem: "System", cxKind: "Type", cxTitle: "Meaning", cxModule: "Module", cxComponent: "Component", cxLook: "Where to look", unsure: "Not fully sure",
     sounds: { knock: "Knock", squeal: "Squeal", grind: "Grind", hiss: "Hiss", rattle: "Rattle", click: "Click", whine: "Whine", clunk: "Clunk", hum: "Hum" },
     whens: { start: "Starting", idle: "Idle", accelerate: "Accelerating", brake: "Braking", turn: "Turning", bumps: "Over bumps", always: "All the time" },
   },
@@ -189,11 +202,11 @@ const T = {
     car: "შენი მანქანა", make: "მარკა", model: "მოდელი", year: "წელი", engine: "ძრავი (არასავალდ.)",
     makePh: "მაგ. Toyota", modelPh: "მაგ. Prius", yearPh: "2016", enginePh: "მაგ. 1.8 ჰიბრიდი",
     what: "რა ხდება?", what_hint: "დაამატე ნებისმიერი. მეტი დეტალი — უკეთესი პასუხი.",
-    code: "შეცდომის კოდი", codeHint: "მაგ. P0301", photo: "ფოტო", takePhoto: "ფოტოს არჩევა", sound: "ხმა",
+    code: "შეცდომის კოდი", codeHint: "მაგ. P0301 ან B143C-11", photo: "ფოტო", takePhoto: "ფოტოს არჩევა", sound: "ხმა",
     soundType: "როგორი ხმაა?", soundWhen: "როდის ისმის?", describe: "აღწერე",
     textHint: "მაგ. 100 კმ/სთ-ზე მანქანა კანკალებს, დამუხრუჭებისას უარესდება", diagnose: "დიაგნოსტიკა", back: "უკან",
     thinking: "ვამოწმებ მანქანას…", thinkingSub: "ამას 10–40 წამი სჭირდება.",
-    needInput: "ჯერ დაამატე კოდი, ფოტო, ხმა ან აღწერა.", badCode: "კოდი არასწორად გამოიყურება. კოდი ასეთია: P0301 — ერთი ასო და ოთხი სიმბოლო.",
+    needInput: "ჯერ დაამატე კოდი, ფოტო, ხმა ან აღწერა.", badCode: "კოდი არასწორად გამოიყურება. კოდი ასეთია: P0301 ან B143C-11 — ერთი ასო, ოთხი სიმბოლო და სურვილისამებრ 2-სიმბოლოიანი ხარვეზის ტიპი.",
     safe_yes: "მგზავრობა უსაფრთხოა", safe_short_distance: "მხოლოდ მოკლე მანძილზე", safe_no: "არ იმგზავრო",
     sev_low: "დაბალი", sev_medium: "საშუალო", sev_high: "მაღალი", sev_critical: "კრიტიკული", severity: "სიმძიმე",
     causes: "სავარაუდო მიზეზები", cost: "შეკეთების სამართლიანი ფასი", checks: "რისი შემოწმება შეგიძლია", questions: "უპასუხე უკეთესი შედეგისთვის",
@@ -210,11 +223,126 @@ const T = {
     badEmail: "შეიყვანე სწორი ელფოსტა.", tooMany: "ძალიან ბევრი მცდელობა. სცადე მოგვიანებით.",
     privacy: "კონფიდენციალურობა", disclaimerFoot: "AI-ის შეფასება, ხელოსანს არ ცვლის.",
     errors: { quota: "დღევანდელი უფასო შემოწმებები გამოიყენე.", failed: "დიაგნოსტიკა ამჯერად ვერ მოხერხდა. უფასო შემოწმება არ დაგეხარჯა. სცადე თავიდან.", scan_failed: "ფოტო ვერ წავიკითხე. სცადე თავიდან.", network: "კავშირი არ არის. შეამოწმე ინტერნეტი და სცადე თავიდან.", photoBad: "ფოტო ვერ წავიკითხე. სცადე JPEG ან PNG." },
-    sys: { P: "ძრავი/ტრანსმისია", C: "შასი", B: "ძარა", U: "ქსელი" }, generic: "ზოგადი", maker: "მწარმოებლის", fault: "ხარვეზი",
+    sys: { P: "ძრავი/ტრანსმისია", C: "შასი", B: "ძარა", U: "ქსელი" }, generic: "ზოგადი", maker: "მწარმოებლის", fault: "ხარვეზი", ftbUnknown: "ხარვეზის ტიპი",
+    codeExplained: "კოდის გაშიფვრა", cxSystem: "სისტემა", cxKind: "ტიპი", cxTitle: "მნიშვნელობა", cxModule: "ბლოკი", cxComponent: "კომპონენტი", cxLook: "სად მოძებნო", unsure: "ზუსტად დარწმუნებული არ არის",
     sounds: { knock: "კაკუნი", squeal: "წრიპინი", grind: "ხეხვა", hiss: "შიშინი", rattle: "ჩხრიალი", click: "ტკაცუნი", whine: "ზუზუნი", clunk: "ბრახუნი", hum: "გუგუნი" },
     whens: { start: "დაქოქვისას", idle: "ადგილზე", accelerate: "აჩქარებისას", brake: "დამუხრუჭებისას", turn: "მოხვევისას", bumps: "ორმოებზე", always: "მუდმივად" },
   },
 };
+
+// SAE J2012-DA failure type byte (the "-11" in B143C-11): [English, Georgian].
+const FTB = {
+  "00": ["No sub type information", "დამატებითი ინფორმაცია არ არის"],
+  "01": ["General electrical failure", "ზოგადი ელექტრული ხარვეზი"],
+  "02": ["General signal failure", "ზოგადი სიგნალის ხარვეზი"],
+  "03": ["FM / PWM failure", "სიხშირული / PWM სიგნალის ხარვეზი"],
+  "04": ["System internal failure", "სისტემის შიდა ხარვეზი"],
+  "05": ["System programming failure", "სისტემის პროგრამირების ხარვეზი"],
+  "06": ["Algorithm based failure", "ალგორითმით გამოვლენილი ხარვეზი"],
+  "07": ["Mechanical failure", "მექანიკური ხარვეზი"],
+  "08": ["Bus signal / message failure", "სალტის სიგნალის / შეტყობინების ხარვეზი"],
+  "09": ["Component failure", "კომპონენტის ხარვეზი"],
+  "11": ["Circuit short to ground", "მოკლე ჩართვა მასაზე"],
+  "12": ["Circuit short to battery", "მოკლე ჩართვა კვებაზე"],
+  "13": ["Circuit open", "გაწყვეტილი წრედი"],
+  "14": ["Circuit short to ground or open", "მოკლე ჩართვა მასაზე ან გაწყვეტა"],
+  "15": ["Circuit short to battery or open", "მოკლე ჩართვა კვებაზე ან გაწყვეტა"],
+  "16": ["Circuit voltage below threshold", "წრედის ძაბვა ზღვარზე დაბალია"],
+  "17": ["Circuit voltage above threshold", "წრედის ძაბვა ზღვარზე მაღალია"],
+  "18": ["Circuit current below threshold", "წრედის დენი ზღვარზე დაბალია"],
+  "19": ["Circuit current above threshold", "წრედის დენი ზღვარზე მაღალია"],
+  "1A": ["Circuit resistance below threshold", "წრედის წინაღობა ზღვარზე დაბალია"],
+  "1B": ["Circuit resistance above threshold", "წრედის წინაღობა ზღვარზე მაღალია"],
+  "1C": ["Circuit voltage out of range", "წრედის ძაბვა დიაპაზონს გარეთაა"],
+  "1D": ["Circuit current out of range", "წრედის დენი დიაპაზონს გარეთაა"],
+  "1E": ["Circuit resistance out of range", "წრედის წინაღობა დიაპაზონს გარეთაა"],
+  "1F": ["Circuit intermittent", "წრედი წყვეტილად მუშაობს"],
+  "21": ["Signal amplitude below minimum", "სიგნალის ამპლიტუდა მინიმუმზე დაბალია"],
+  "22": ["Signal amplitude above maximum", "სიგნალის ამპლიტუდა მაქსიმუმზე მაღალია"],
+  "23": ["Signal stuck low", "სიგნალი დაბალ მნიშვნელობაზე გაიჭედა"],
+  "24": ["Signal stuck high", "სიგნალი მაღალ მნიშვნელობაზე გაიჭედა"],
+  "25": ["Signal shape / waveform failure", "სიგნალის ფორმის ხარვეზი"],
+  "26": ["Signal rate of change below threshold", "სიგნალი ზედმეტად ნელა იცვლება"],
+  "27": ["Signal rate of change above threshold", "სიგნალი ზედმეტად სწრაფად იცვლება"],
+  "28": ["Signal bias out of range / zero adjustment failure", "სიგნალის ნულოვანი დონე არასწორია"],
+  "29": ["Signal invalid", "სიგნალი არავალიდურია"],
+  "2A": ["Signal stuck in range", "სიგნალი დიაპაზონში გაიჭედა"],
+  "2B": ["Signal cross coupled", "სიგნალი სხვა წრედთანაა გადაბმული"],
+  "2C": ["Signal value incorrect", "სიგნალის მნიშვნელობა არასწორია"],
+  "2D": ["Signal stuck out of range", "სიგნალი დიაპაზონს გარეთ გაიჭედა"],
+  "2E": ["Signal not available", "სიგნალი მიუწვდომელია"],
+  "2F": ["Signal erratic", "სიგნალი არასტაბილურია"],
+  "31": ["No signal", "სიგნალი არ არის"],
+  "32": ["Signal low time below minimum", "სიგნალის დაბალი დონის დრო მინიმუმზე ნაკლებია"],
+  "33": ["Signal low time above maximum", "სიგნალის დაბალი დონის დრო მაქსიმუმზე მეტია"],
+  "34": ["Signal high time below minimum", "სიგნალის მაღალი დონის დრო მინიმუმზე ნაკლებია"],
+  "35": ["Signal high time above maximum", "სიგნალის მაღალი დონის დრო მაქსიმუმზე მეტია"],
+  "36": ["Signal frequency too low", "სიგნალის სიხშირე ძალიან დაბალია"],
+  "37": ["Signal frequency too high", "სიგნალის სიხშირე ძალიან მაღალია"],
+  "38": ["Signal frequency incorrect", "სიგნალის სიხშირე არასწორია"],
+  "39": ["Signal has too few pulses", "სიგნალს ძალიან ცოტა იმპულსი აქვს"],
+  "3A": ["Signal has too many pulses", "სიგნალს ძალიან ბევრი იმპულსი აქვს"],
+  "41": ["General checksum failure", "საკონტროლო ჯამის ხარვეზი"],
+  "42": ["General memory failure", "მეხსიერების ზოგადი ხარვეზი"],
+  "43": ["Special memory failure", "სპეციალური მეხსიერების ხარვეზი"],
+  "44": ["Data memory failure", "მონაცემთა მეხსიერების ხარვეზი"],
+  "45": ["Program memory failure", "პროგრამის მეხსიერების ხარვეზი"],
+  "46": ["Calibration / parameter memory failure", "კალიბრაციის / პარამეტრების მეხსიერების ხარვეზი"],
+  "47": ["Watchdog / safety processor failure", "საკონტროლო (watchdog) პროცესორის ხარვეზი"],
+  "48": ["Supervision software failure", "საკონტროლო პროგრამის ხარვეზი"],
+  "49": ["Internal electronic failure", "ბლოკის შიდა ელექტრონული ხარვეზი"],
+  "4A": ["Incorrect component installed", "დაყენებულია არასწორი კომპონენტი"],
+  "4B": ["Over temperature", "გადახურება"],
+  "51": ["Not programmed", "არ არის დაპროგრამებული"],
+  "52": ["Not activated", "არ არის აქტივირებული"],
+  "53": ["Deactivated", "დეაქტივირებულია"],
+  "54": ["Missing calibration", "კალიბრაცია აკლია"],
+  "55": ["Not configured", "არ არის კონფიგურირებული"],
+  "56": ["Invalid / incompatible configuration", "არასწორი / შეუთავსებელი კონფიგურაცია"],
+  "61": ["Signal calculation failure", "სიგნალის გამოთვლის ხარვეზი"],
+  "62": ["Signal compare failure", "სიგნალების შედარების ხარვეზი"],
+  "63": ["Circuit / component protection time-out", "წრედის / კომპონენტის დაცვის დრო ამოიწურა"],
+  "64": ["Signal plausibility failure", "სიგნალი დამაჯერებელი არ არის"],
+  "65": ["Signal has too few transitions / events", "სიგნალს ძალიან ცოტა ცვლილება აქვს"],
+  "66": ["Signal has too many transitions / events", "სიგნალს ძალიან ბევრი ცვლილება აქვს"],
+  "67": ["Signal incorrect after event", "სიგნალი არასწორია მოვლენის შემდეგ"],
+  "68": ["Event information", "ინფორმაცია მოვლენის შესახებ"],
+  "71": ["Actuator stuck", "ამძრავი გაიჭედა"],
+  "72": ["Actuator stuck open", "ამძრავი ღიად გაიჭედა"],
+  "73": ["Actuator stuck closed", "ამძრავი დახურულად გაიჭედა"],
+  "74": ["Actuator slipping", "ამძრავი სრიალებს"],
+  "75": ["Emergency position not reachable", "ავარიულ პოზიციას ვერ აღწევს"],
+  "76": ["Wrong mounting position", "არასწორად არის დამონტაჟებული"],
+  "77": ["Commanded position not reachable", "მითითებულ პოზიციას ვერ აღწევს"],
+  "78": ["Alignment or adjustment incorrect", "გასწორება ან რეგულირება არასწორია"],
+  "79": ["Mechanical linkage failure", "მექანიკური გადაცემის ხარვეზი"],
+  "7A": ["Fluid leak or seal failure", "სითხის გაჟონვა ან შუასადების დაზიანება"],
+  "7B": ["Low fluid level", "სითხის დაბალი დონე"],
+  "81": ["Invalid serial data received", "მიღებულია არასწორი მონაცემები"],
+  "82": ["Alive / sequence counter incorrect or not updated", "შეტყობინების მთვლელი არასწორია ან არ ახლდება"],
+  "83": ["Signal protection calculation (checksum) incorrect", "შეტყობინების საკონტროლო ჯამი არასწორია"],
+  "84": ["Signal below allowable range", "სიგნალი დასაშვებ დიაპაზონზე დაბალია"],
+  "85": ["Signal above allowable range", "სიგნალი დასაშვებ დიაპაზონზე მაღალია"],
+  "86": ["Signal invalid", "სიგნალი არავალიდურია"],
+  "87": ["Missing message", "შეტყობინება არ მოდის"],
+  "88": ["Bus off", "სალტე გათიშულია"],
+  "89": ["Message length incorrect", "შეტყობინების სიგრძე არასწორია"],
+  "8A": ["Message timing incorrect", "შეტყობინების დროითი პარამეტრები არასწორია"],
+  "8B": ["Message counter incorrect", "შეტყობინების მთვლელი არასწორია"],
+  "8C": ["Message content incorrect", "შეტყობინების შინაარსი არასწორია"],
+  "8D": ["Message source incorrect", "შეტყობინების წყარო არასწორია"],
+  "8E": ["Message not supported", "შეტყობინება არ არის მხარდაჭერილი"],
+  "8F": ["Erratic", "არასტაბილური"],
+  "91": ["Parametric", "პარამეტრული ხარვეზი"],
+  "92": ["Performance or incorrect operation", "მუშაობს ცუდად ან არასწორად"],
+  "93": ["No operation", "არ მუშაობს"],
+  "94": ["Unexpected operation", "მოულოდნელად ამოქმედდა"],
+  "95": ["Incorrect assembly", "არასწორად არის აწყობილი"],
+  "96": ["Component internal failure", "კომპონენტის შიდა ხარვეზი"],
+  "97": ["Component or system operation obstructed or blocked", "კომპონენტის მუშაობა შეფერხებული ან დაბლოკილია"],
+  "98": ["Component or system over temperature", "კომპონენტის ან სისტემის გადახურება"],
+};
+const ftbText = f => { const e = FTB[f]; return e ? e[S.lang === "ka" ? 1 : 0] : t("ftbUnknown"); };
 
 const LS = {
   get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (_) { return d; } },
@@ -273,10 +401,12 @@ async function loadMe() {
 }
 
 // ---------- helpers ----------
+// Same rule as src/dtc.js: base code plus optional failure type, canonical form "B143C-11".
 function decodeCode(raw) {
-  const c = (raw || "").toUpperCase().replace(/[\s-]/g, "");
-  if (!/^[PCBU][0-3][0-9A-F]{3}$/.test(c)) return null;
-  return { c, sys: t("sys")[c[0]], generic: c[1] === "0" || c[1] === "2" };
+  const m = /^([PCBU][0-3][0-9A-F]{3})(?:[\s:\-_.]*([0-9A-F]{2}))?$/.exec((raw || "").trim().toUpperCase());
+  if (!m) return null;
+  const base = m[1], ftb = m[2] || null;
+  return { c: ftb ? `${base}-${ftb}` : base, base, ftb, sys: t("sys")[base[0]], generic: base[1] === "0" || base[1] === "2" };
 }
 // Shrink a photo to at most 1568 px on the long side and send it as JPEG (well under the 4 MB limit).
 function compressImage(file) {
@@ -349,7 +479,7 @@ function viewNew() {
     <p class="note" style="margin-top:-6px">${t("what_hint")}</p>
 
     <div class="panel"><div class="sec-h">${icons.code} ${t("code")}</div>
-      <div class="field"><input id="code" class="code-in" data-f="code" maxlength="6" autocomplete="off" autocapitalize="characters" placeholder="${t("codeHint")}" value="${esc(f.code)}" aria-label="${t("code")}"></div>
+      <div class="field"><input id="code" class="code-in" data-f="code" maxlength="10" autocomplete="off" autocapitalize="characters" placeholder="${t("codeHint")}" value="${esc(f.code)}" aria-label="${t("code")}"></div>
       <div id="anatomy">${anatomy(dc)}</div>
       <div class="scan-row">
         ${q().pro ? `<label class="btn-o" for="scanIn">${icons.scan} ${t("scan")}</label><input id="scanIn" type="file" accept="image/*" hidden>`
@@ -383,13 +513,31 @@ function viewNew() {
 
 function anatomy(dc) {
   if (!dc) return "";
-  return `<div class="anatomy"><span><b>${dc.c[0]}</b> ${esc(dc.sys)}</span><span><b>${dc.c[1]}</b> ${dc.generic ? t("generic") : t("maker")}</span><span><b>${dc.c.slice(2)}</b> ${t("fault")}</span></div>`;
+  return `<div class="anatomy"><span><b>${dc.base[0]}</b> ${esc(dc.sys)}</span><span><b>${dc.base[1]}</b> ${dc.generic ? t("generic") : t("maker")}</span><span><b>${dc.base.slice(2)}</b> ${t("fault")}</span>${dc.ftb ? `<span><b>${dc.ftb}</b> · ${esc(ftbText(dc.ftb))}</span>` : ""}</div>`;
 }
 
 function viewThinking() {
   return `<div class="thinking"><div>
     <svg class="gauge" viewBox="0 0 120 66" aria-hidden="true"><path d="M10 60a50 50 0 0 1 100 0" fill="none" stroke="var(--line)" stroke-width="8" stroke-linecap="round"/><path d="M85 17a50 50 0 0 1 25 43" fill="none" stroke="var(--accent)" stroke-width="8" stroke-linecap="round"/><line class="needle" x1="60" y1="60" x2="60" y2="18" stroke="var(--fg)" stroke-width="4" stroke-linecap="round"/><circle cx="60" cy="60" r="6" fill="var(--fg)"/></svg>
     <h2 style="font-size:28px;margin-top:14px">${t("thinking")}</h2><p class="note">${t("thinkingSub")}</p></div></div>`;
+}
+
+// "Code explained" panel: the AI's code_details, falling back to the parsed code_info + local tables.
+function codeExplained(d) {
+  const info = d.code_info, cd = d.code_details;
+  const dc = decodeCode(info?.code || cd?.code);
+  if (!dc) return "";
+  const row = (k, v) => v ? `<div class="cx-row"><span class="k">${t(k)}</span><span class="v">${esc(v)}</span></div>` : "";
+  const title = cd?.title || info?.meaning || "";
+  const look = cd?.where_to_look?.length ? `<div class="cx-look"><div class="label">${t("cxLook")}</div><ul class="list">${cd.where_to_look.map(x => `<li>${esc(x)}</li>`).join("")}</ul></div>` : "";
+  return `<div class="h3">${t("codeExplained")}${cd?.confidence === "low" ? `<span class="unsure">${t("unsure")}</span>` : ""}</div>
+  <div class="panel">
+    <div class="cx-code">${esc(dc.base)}${dc.ftb ? `<span>-${esc(dc.ftb)}</span>` : ""}</div>
+    ${row("cxSystem", dc.sys)}${row("cxKind", dc.generic ? t("generic") : t("maker"))}${row("cxTitle", title)}${row("cxModule", cd?.module)}${row("cxComponent", cd?.component)}
+    ${dc.ftb ? `<div class="cx-ftb"><b>-${esc(dc.ftb)}</b> · ${esc(ftbText(dc.ftb))}${cd?.failure_type ? `<p>${esc(cd.failure_type)}</p>` : ""}</div>` : ""}
+    ${cd?.what_it_means ? `<p class="cx-what">${esc(cd.what_it_means)}</p>` : ""}
+    ${look}
+  </div>`;
 }
 
 function viewResult() {
@@ -403,6 +551,7 @@ function viewResult() {
     <h2>${esc(d.summary)}</h2>
     <div class="safe"><span style="color:${c}">${sIcon}</span><div><b>${t("safe_" + d.safe_to_drive) || esc(d.safe_to_drive)}</b><div>${esc(d.safety_note)}</div></div></div>
   </div>
+  ${codeExplained(d)}
   <div class="h3">${t("causes")}</div>
   <div class="panel">${(d.causes || []).map(x => { const p = Math.round(Math.max(0, Math.min(1, Number(x.likelihood) || 0)) * 100); return `<div class="cause"><div class="top"><span>${esc(x.name)}</span><span class="pct">${p}%</span></div><div class="bar"><i style="width:${p}%"></i></div><p>${esc(x.explanation)}</p></div>`; }).join("")}</div>
   ${rc && rc.low != null ? `<div class="h3">${t("cost")}</div><div class="cost"><small>${esc(rc.currency || "USD")}</small>${Math.round(rc.low)}–${Math.round(rc.high)}</div><p class="note">${esc(rc.note)}</p>` : ""}

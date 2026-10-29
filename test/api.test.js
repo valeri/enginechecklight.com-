@@ -161,9 +161,27 @@ test('waitlist stores each email once', async () => {
   assert.equal((await call('/api/waitlist', { method: 'POST', body: { email: 'bad' } })).status, 400);
 });
 
+test('diagnose accepts a failure type suffix and stores the canonical code', async () => {
+  const { call, sent } = setup();
+  await call('/api/auth/start', { method: 'POST', body: { email: 'ftb@example.com' } });
+  await call(sent[0].text.match(/https:\/\/\S+/)[0].replace(BASE, ''));
+  const r = await call('/api/diagnose', { method: 'POST', body: { code: 'B143C:11', car: { make: 'Land Rover' } } });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.item.req.code, 'B143C-11');
+  assert.equal(r.body.code_info.code, 'B143C-11');
+  assert.equal(r.body.code_info.ftbMeaning, 'Circuit short to ground');
+  const h = await call('/api/history');
+  assert.equal(h.body.items[0].req.code, 'B143C-11');
+  assert.equal(h.body.items[0].d.code_info.ftb, '11');
+  const bad = await call('/api/diagnose', { method: 'POST', body: { code: 'B143C-111' } });
+  assert.equal(bad.status, 400);
+  assert.match(bad.body.message, /B143C-11/);
+});
+
 test('code lookup and unknown routes', async () => {
   const { call } = setup();
   const r = await call('/api/codes/p0420');
   assert.equal(r.body.code, 'P0420');
+  assert.equal((await call('/api/codes/B143C%3A11')).body.code, 'B143C-11');
   assert.equal((await call('/api/nope')).status, 404);
 });

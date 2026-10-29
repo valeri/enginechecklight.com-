@@ -40,7 +40,7 @@ export function parseInput(body = {}) {
 
   if (body.code) {
     const info = describeCode(body.code);
-    if (!info) throw new InputError('Invalid trouble code format (expected e.g. P0301)');
+    if (!info) throw new InputError('Invalid trouble code format (expected e.g. P0301 or B143C-11)');
     input.code = info;
   }
 
@@ -80,11 +80,41 @@ function describeForModel(input) {
       `trouble code: ${input.code.code} (${input.code.system}, ${input.code.generic ? 'generic' : 'manufacturer-specific'})` +
         (input.code.meaning ? ` — standard meaning: ${input.code.meaning}` : ''),
     );
+    if (input.code.ftb) {
+      lines.push(
+        `failure type: -${input.code.ftb}${input.code.ftbMeaning ? ` = ${input.code.ftbMeaning}` : ' (not in the SAE J2012-DA list)'} (base code ${input.code.base}). ` +
+          'Use the failure type to narrow the cause, e.g. short to ground vs open circuit.',
+      );
+    }
   }
   if (input.sound) lines.push(`sound: ${input.sound.type}, happens when: ${input.sound.when.join(', ') || 'not specified'}`);
   if (input.text) lines.push(`driver says: """${input.text}"""`);
   if (input.image) lines.push('a photo from the driver is attached');
   return lines.join('\n');
+}
+
+const CONFIDENCE = ['high', 'medium', 'low'];
+
+/** Clean the optional code_details block. Returns null when there is nothing useful in it. */
+export function parseCodeDetails(cd) {
+  if (!cd || typeof cd !== 'object') return null;
+  const str = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
+  const title = str(cd.title, 200);
+  const what = str(cd.what_it_means, 800);
+  if (!title && !what) return null;
+  return {
+    code: normaliseCode(cd.code) ?? str(cd.code, 12),
+    title,
+    module: str(cd.module, 120),
+    component: str(cd.component, 160),
+    failure_type: str(cd.failure_type, 400),
+    what_it_means: what,
+    where_to_look: (Array.isArray(cd.where_to_look) ? cd.where_to_look : [])
+      .map((x) => str(x, 200))
+      .filter(Boolean)
+      .slice(0, 4),
+    confidence: CONFIDENCE.includes(cd.confidence) ? cd.confidence : 'low',
+  };
 }
 
 /** Pull the first JSON object out of the model text and check its shape. */
@@ -113,6 +143,7 @@ export function parseDiagnosis(text) {
     repair_cost: d.repair_cost ?? null,
     questions: (d.questions ?? []).slice(0, 3).map(String),
     disclaimer: d.disclaimer ?? 'AI estimate — confirm with a mechanic before major repairs.',
+    code_details: parseCodeDetails(d.code_details),
   };
 }
 
@@ -130,6 +161,16 @@ export const MOCK_DIAGNOSIS = {
   repair_cost: { currency: 'USD', low: 250, high: 900, note: 'Cleaning is cheaper; a new valve plus labour is the top of the range.' },
   questions: ['Is it mostly short city trips?', 'Has the DPF warning ever come on?'],
   disclaimer: 'AI estimate — confirm with a mechanic before major repairs.',
+  code_details: {
+    code: 'P0401',
+    title: 'EGR flow insufficient: the engine computer sees less exhaust gas recirculation than it asked for.',
+    module: 'Engine control module (ECM)',
+    component: 'EGR valve, EGR cooler and EGR position sensor',
+    failure_type: '',
+    what_it_means: 'The ECM opens the EGR valve and expects intake pressure or airflow to change. On this engine it did not change enough, which almost always means soot is blocking the valve or cooler.',
+    where_to_look: ['EGR valve on the intake side of the engine', 'EGR cooler and its pipes', 'EGR valve connector and wiring'],
+    confidence: 'high',
+  },
 };
 
 export function createDiagnoser({ apiKey, mock = false } = {}) {
@@ -137,7 +178,11 @@ export function createDiagnoser({ apiKey, mock = false } = {}) {
 
   return async function diagnose(input) {
     const model = pickModel(input);
-    if (mock) return { model, diagnosis: MOCK_DIAGNOSIS, usage: null };
+    if (mock) {
+      // The sample code_details only fits P0401; for any other code the page falls back to local data.
+      const details = input.code?.base === 'P0401' ? MOCK_DIAGNOSIS.code_details : null;
+      return { model, diagnosis: { ...MOCK_DIAGNOSIS, code_details: details }, usage: null };
+    }
 
     const content = [];
     if (input.image) {
@@ -167,8 +212,9 @@ export function createDiagnoser({ apiKey, mock = false } = {}) {
 // ---- Pro: read trouble codes from a screenshot or photo -------------------------------------
 const SCAN_PROMPT = `This image is a screenshot of a car diagnostic (OBD2) app, a photo of a scan tool screen, or a photo of a car's dashboard or instrument display.
 Find every diagnostic trouble code shown. Codes are one letter P, C, B or U followed by four characters, e.g. P0301, P0420, U0100, C1A20.
+Many scan tools add a 2-character failure type suffix, shown as B143C-11, B143C:11, B143C 11 or B143C11. Always keep the suffix and write it as CODE-XX, e.g. B143C-11.
 Ignore mileage, dates, VINs, part numbers and anything that is not a trouble code. If there are none, return an empty list.
-Reply with ONLY JSON: {"codes": ["P0301"]}`;
+Reply with ONLY JSON, e.g. {"codes": ["P0301", "B143C-11"]}`;
 
 export function parseImage(body = {}) {
   const img = body.image || {};

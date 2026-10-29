@@ -26,23 +26,148 @@ const DTC = {
   U0100: 'Lost communication with ECM/PCM',
 };
 
-const CODE_RE = /^[PCBU][0-3][0-9A-F]{3}$/;
+// SAE J2012-DA / ISO 14229 failure type byte (FTB): the 2 hex characters after the base code,
+// e.g. B143C-11 = B143C with "circuit short to ground".
+export const FTB = {
+  '00': 'No sub type information',
+  '01': 'General electrical failure',
+  '02': 'General signal failure',
+  '03': 'FM (frequency modulated) / PWM failure',
+  '04': 'System internal failure',
+  '05': 'System programming failure',
+  '06': 'Algorithm based failure',
+  '07': 'Mechanical failure',
+  '08': 'Bus signal / message failure',
+  '09': 'Component failure',
+  '11': 'Circuit short to ground',
+  '12': 'Circuit short to battery',
+  '13': 'Circuit open',
+  '14': 'Circuit short to ground or open',
+  '15': 'Circuit short to battery or open',
+  '16': 'Circuit voltage below threshold',
+  '17': 'Circuit voltage above threshold',
+  '18': 'Circuit current below threshold',
+  '19': 'Circuit current above threshold',
+  '1A': 'Circuit resistance below threshold',
+  '1B': 'Circuit resistance above threshold',
+  '1C': 'Circuit voltage out of range',
+  '1D': 'Circuit current out of range',
+  '1E': 'Circuit resistance out of range',
+  '1F': 'Circuit intermittent',
+  '21': 'Signal amplitude below minimum',
+  '22': 'Signal amplitude above maximum',
+  '23': 'Signal stuck low',
+  '24': 'Signal stuck high',
+  '25': 'Signal shape / waveform failure',
+  '26': 'Signal rate of change below threshold',
+  '27': 'Signal rate of change above threshold',
+  '28': 'Signal bias level out of range / zero adjustment failure',
+  '29': 'Signal invalid',
+  '2A': 'Signal stuck in range',
+  '2B': 'Signal cross coupled',
+  '2C': 'Signal value incorrect',
+  '2D': 'Signal stuck out of range',
+  '2E': 'Signal not available',
+  '2F': 'Signal erratic',
+  '31': 'No signal',
+  '32': 'Signal low time below minimum',
+  '33': 'Signal low time above maximum',
+  '34': 'Signal high time below minimum',
+  '35': 'Signal high time above maximum',
+  '36': 'Signal frequency too low',
+  '37': 'Signal frequency too high',
+  '38': 'Signal frequency incorrect',
+  '39': 'Signal has too few pulses',
+  '3A': 'Signal has too many pulses',
+  '41': 'General checksum failure',
+  '42': 'General memory failure',
+  '43': 'Special memory failure',
+  '44': 'Data memory failure',
+  '45': 'Program memory failure',
+  '46': 'Calibration / parameter memory failure',
+  '47': 'Watchdog / safety processor failure',
+  '48': 'Supervision software failure',
+  '49': 'Internal electronic failure',
+  '4A': 'Incorrect component installed',
+  '4B': 'Over temperature',
+  '51': 'Not programmed',
+  '52': 'Not activated',
+  '53': 'Deactivated',
+  '54': 'Missing calibration',
+  '55': 'Not configured',
+  '56': 'Invalid / incompatible configuration',
+  '61': 'Signal calculation failure',
+  '62': 'Signal compare failure',
+  '63': 'Circuit / component protection time-out',
+  '64': 'Signal plausibility failure',
+  '65': 'Signal has too few transitions / events',
+  '66': 'Signal has too many transitions / events',
+  '67': 'Signal incorrect after event',
+  '68': 'Event information',
+  '71': 'Actuator stuck',
+  '72': 'Actuator stuck open',
+  '73': 'Actuator stuck closed',
+  '74': 'Actuator slipping',
+  '75': 'Emergency position not reachable',
+  '76': 'Wrong mounting position',
+  '77': 'Commanded position not reachable',
+  '78': 'Alignment or adjustment incorrect',
+  '79': 'Mechanical linkage failure',
+  '7A': 'Fluid leak or seal failure',
+  '7B': 'Low fluid level',
+  '81': 'Invalid serial data received',
+  '82': 'Alive / sequence counter incorrect or not updated',
+  '83': 'Signal protection calculation (checksum) incorrect',
+  '84': 'Signal below allowable range',
+  '85': 'Signal above allowable range',
+  '86': 'Signal invalid',
+  '87': 'Missing message',
+  '88': 'Bus off',
+  '89': 'Message length incorrect',
+  '8A': 'Message timing incorrect',
+  '8B': 'Message counter incorrect',
+  '8C': 'Message content incorrect',
+  '8D': 'Message source incorrect',
+  '8E': 'Message not supported',
+  '8F': 'Erratic',
+  '91': 'Parametric',
+  '92': 'Performance or incorrect operation',
+  '93': 'No operation',
+  '94': 'Unexpected operation',
+  '95': 'Incorrect assembly',
+  '96': 'Component internal failure',
+  '97': 'Component or system operation obstructed or blocked',
+  '98': 'Component or system over temperature',
+};
 
-export function normaliseCode(raw) {
+// Accepts P0301, B143C-11, B143C:11, "B143C 11", B143C11, B143C_11, B143C.11 (after trim + uppercase).
+const CODE_RE = /^([PCBU][0-3][0-9A-F]{3})(?:[\s:\-_.]*([0-9A-F]{2}))?$/;
+
+function splitCode(raw) {
   if (!raw) return null;
-  const code = String(raw).trim().toUpperCase().replace(/[\s-]/g, '');
-  return CODE_RE.test(code) ? code : null;
+  const m = CODE_RE.exec(String(raw).trim().toUpperCase());
+  return m ? { base: m[1], ftb: m[2] ?? null } : null;
+}
+
+/** Canonical form: "P0301" or "B143C-11". */
+export function normaliseCode(raw) {
+  const p = splitCode(raw);
+  return p ? (p.ftb ? `${p.base}-${p.ftb}` : p.base) : null;
 }
 
 export function describeCode(code) {
-  const c = normaliseCode(code);
-  if (!c) return null;
-  const system = { P: 'Powertrain', C: 'Chassis', B: 'Body', U: 'Network' }[c[0]];
-  const generic = c[1] === '0' || c[1] === '2';
+  const p = splitCode(code);
+  if (!p) return null;
+  const { base, ftb } = p;
+  const system = { P: 'Powertrain', C: 'Chassis', B: 'Body', U: 'Network' }[base[0]];
+  const generic = base[1] === '0' || base[1] === '2';
   return {
-    code: c,
+    code: ftb ? `${base}-${ftb}` : base,
+    base,
+    ftb,
+    ftbMeaning: ftb ? FTB[ftb] ?? null : null,
     system,
     generic,
-    meaning: DTC[c] ?? null,
+    meaning: DTC[base] ?? null,
   };
 }

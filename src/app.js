@@ -172,18 +172,19 @@ export async function handle(req, deps) {
         await store.incr(`quota:${day}:${who}`);
         await store.incr(`quota:${day}:ip:${ip}`);
       }
+      const diagnosis = input.code ? { ...result.diagnosis, code_info: input.code } : result.diagnosis;
       const item = {
         id: token().slice(0, 12),
         at: now,
         req: { make: input.car.make, model: input.car.model, year: input.car.year, code: input.code?.code ?? null, hadPhoto: Boolean(input.image) },
-        d: result.diagnosis,
+        d: diagnosis,
       };
       if (user) {
         const list = (await store.get(`history:${user.id}`)) ?? [];
         list.unshift(item);
         await store.set(`history:${user.id}`, list.slice(0, HISTORY_MAX));
       }
-      return out({ ...result.diagnosis, item: { id: item.id, at: item.at, req: item.req }, meta: { model: result.model, live: env.LIVE === '1', quota: await quota() } });
+      return out({ ...diagnosis, item: { id: item.id, at: item.at, req: item.req }, meta: { model: result.model, live: env.LIVE === '1', quota: await quota() } });
     }
 
     if (path === '/api/scan-code' && method === 'POST') {
