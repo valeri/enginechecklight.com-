@@ -1,0 +1,592 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>EngineCheckLight · AI car diagnosis</title>
+<meta name="description" content="Check-engine light on? Enter the error code, a photo, the sound or a description and get the likely cause, whether it is safe to drive, and a fair repair price.">
+<meta name="theme-color" content="#d9480f">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icons/favicon-32.png" sizes="32x32">
+<link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="CheckLight">
+<meta property="og:title" content="EngineCheckLight">
+<meta property="og:description" content="Your mechanic in your pocket. AI car diagnosis from an error code, photo, sound or description.">
+<meta property="og:image" content="https://enginechecklight.com/icons/icon-512.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Georgian:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* One phone-width app column, centred on wider screens; instrument-panel feel — steel neutrals, one warning-light orange. */
+:root {
+  --bg: #eef0ef; --surface: #ffffff; --sunken: #e3e6e5; --fg: #1c2023; --muted: #5d666b; --line: #cfd4d3;
+  --accent: #d9480f; --accent-ink: #ffffff; --accent-soft: #fde7dc;
+  --ok: #2b8a3e; --warn: #e67700; --high: #d9480f; --crit: #c92a2a;
+  --display: "Barlow Condensed", "Arial Narrow", "Noto Sans Georgian", sans-serif;
+  --body: "Noto Sans", "Noto Sans Georgian", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --r: 14px;
+}
+@media (prefers-color-scheme: dark) { :root {
+  --bg: #121517; --surface: #1b1f22; --sunken: #23282b; --fg: #e8ecec; --muted: #9aa4a8; --line: #30373b;
+  --accent: #ff7a3d; --accent-ink: #1b0d05; --accent-soft: #3a2116;
+  --ok: #51cf66; --warn: #fcc419; --high: #ff7a3d; --crit: #ff6b6b; color-scheme: dark } }
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.55 var(--body); }
+.app { max-width: 440px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-top: max(16px, env(safe-area-inset-top, 0px)); padding-bottom: 120px; }
+h1, h2, h3 { font-family: var(--display); letter-spacing: .01em; text-wrap: balance; margin: 0; line-height: 1.05; }
+button, input, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+.topbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-block: 8px 20px; }
+.brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.brand h1 { font-size: clamp(21px, 6.4vw, 28px); font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wordmark span { color: var(--accent); }
+.lamp { width: 30px; height: 30px; flex: none; border-radius: 50%; background: var(--accent); display: grid; place-items: center; color: var(--accent-ink); }
+.tools { display: flex; align-items: center; gap: 6px; flex: none; }
+.seg { display: inline-flex; background: var(--sunken); border-radius: 999px; padding: 3px; }
+.seg button { border: 0; background: none; padding: 4px 10px; border-radius: 999px; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--muted); }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--fg); }
+.acct { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); display: grid; place-items: center; cursor: pointer; color: var(--muted); padding: 0; }
+.acct.on { border-color: var(--accent); color: var(--accent); font-weight: 700; font-size: 14px; }
+.back { border: 0; background: none; cursor: pointer; padding: 6px 0; color: var(--muted); font-weight: 600; display: inline-flex; align-items: center; gap: 4px; }
+
+.tag { color: var(--muted); margin: -12px 0 24px; }
+.label { font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.stack { display: flex; flex-direction: column; gap: 12px; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 14px; }
+.hist { display: grid; grid-template-columns: 14px 1fr; gap: 4px 12px; text-align: left; width: 100%; cursor: pointer; }
+.hist:hover { border-color: var(--accent); }
+.dot { width: 12px; height: 12px; border-radius: 50%; margin-top: 5px; }
+.hist .t { font-weight: 600; min-width: 0; }
+.hist .s { grid-column: 2; color: var(--muted); font-size: 13px; }
+.example { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; background: var(--sunken); color: var(--muted); border-radius: 4px; padding: 1px 6px; margin-left: 6px; }
+.empty { text-align: center; padding: 28px 16px; }
+.empty h2 { font-size: 26px; margin: 12px 0 6px; }
+
+.fab { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(20px + env(safe-area-inset-bottom, 0px)); border: 0; background: var(--accent); color: var(--accent-ink); font-weight: 700; font-size: 16px; padding: 15px 26px; border-radius: 999px; cursor: pointer; box-shadow: 0 8px 24px rgb(0 0 0 / .18); display: inline-flex; gap: 8px; align-items: center; white-space: nowrap; }
+
+.row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.row.yr { grid-template-columns: 96px 1fr; }
+.field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.field label { font-size: 13px; color: var(--muted); font-weight: 500; }
+.field input, .field textarea { width: 100%; border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 11px 12px; font-size: 16px; }
+.field textarea { resize: vertical; min-height: 80px; }
+.code-in { font-family: var(--mono); font-weight: 700; letter-spacing: .12em; text-transform: uppercase; font-size: 18px !important; }
+
+.sec-h { display: flex; align-items: center; gap: 8px; font-weight: 600; margin-bottom: 10px; }
+.sec-h svg { color: var(--accent); }
+.anatomy { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+.anatomy span { font-family: var(--mono); font-size: 12px; background: var(--sunken); border-radius: 6px; padding: 3px 7px; }
+.anatomy b { color: var(--accent); }
+.hint { font-size: 13px; color: var(--muted); margin: 6px 0 0; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 5px 12px; cursor: pointer; font-size: 14px; }
+.chip[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--fg); font-weight: 600; }
+
+.btn-o { border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 9px 14px; cursor: pointer; font-weight: 600; display: inline-flex; gap: 6px; align-items: center; }
+.preview { position: relative; }
+.preview img { width: 100%; height: 170px; object-fit: cover; border-radius: 10px; display: block; }
+.preview button { position: absolute; top: 8px; right: 8px; border: 0; border-radius: 50%; width: 32px; height: 32px; background: var(--surface); cursor: pointer; font-size: 16px; }
+
+.scan-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.pro { font-size: 11px; font-weight: 800; letter-spacing: .06em; background: var(--accent); color: var(--accent-ink); border-radius: 5px; padding: 1px 6px; }
+.found { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.found .chip { font-family: var(--mono); font-weight: 700; letter-spacing: .06em; }
+.plan-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; color: var(--accent); }
+.primary { width: 100%; border: 0; background: var(--accent); color: var(--accent-ink); border-radius: 14px; padding: 16px; font-weight: 700; font-size: 17px; cursor: pointer; }
+.primary:disabled { opacity: .5; cursor: default; }
+.note { font-size: 13px; color: var(--muted); margin: 0; }
+.err { color: var(--crit); font-size: 14px; margin: 0; }
+
+.thinking { min-height: 60vh; display: grid; place-items: center; text-align: center; gap: 16px; }
+.gauge { width: 120px; height: 66px; }
+.gauge .needle { transform-origin: 60px 60px; animation: sweep 1.6s ease-in-out infinite alternate; }
+@keyframes sweep { from { transform: rotate(-70deg); } to { transform: rotate(70deg); } }
+@media (prefers-reduced-motion: reduce) { .gauge .needle { animation: none; } }
+
+.verdict h2 { font-size: 30px; font-weight: 700; }
+.safe { display: grid; grid-template-columns: 26px 1fr; gap: 10px; border-radius: var(--r); padding: 14px; margin-top: 16px; background: var(--sunken); border-left: 6px solid var(--c); }
+.safe b { color: var(--c); }
+.sev { display: inline-flex; gap: 6px; align-items: center; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--c); margin-bottom: 8px; }
+.h3 { font-family: var(--display); font-size: 22px; font-weight: 700; margin: 28px 0 10px; }
+.cause { display: flex; flex-direction: column; gap: 5px; padding-block: 10px; border-bottom: 1px solid var(--line); }
+.cause:last-child { border-bottom: 0; }
+.cause .top { display: flex; justify-content: space-between; gap: 12px; font-weight: 600; }
+.cause .pct { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--accent); }
+.bar { height: 6px; background: var(--sunken); border-radius: 3px; overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
+.cause p { margin: 0; color: var(--muted); font-size: 14px; }
+.cost { font-family: var(--display); font-size: 44px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+.cost small { font-size: 20px; color: var(--muted); font-weight: 600; margin-right: 4px; }
+ul.list { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+.disc { margin-top: 28px; font-size: 12px; color: var(--muted); }
+
+.pw { text-align: center; }
+.pw h2 { font-size: 40px; font-weight: 800; margin-top: 10px; }
+.plan { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; border: 1px solid var(--line); background: var(--surface); border-radius: var(--r); padding: 16px; cursor: pointer; }
+.plan[aria-pressed="true"] { border: 2px solid var(--accent); padding: 15px; }
+.plan .n { flex: 1; font-weight: 600; }
+.plan .p { font-family: var(--mono); font-weight: 700; }
+.plan .save { font-size: 12px; color: var(--accent); font-weight: 700; display: block; }
+.soon { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.pw-list { text-align: left; margin: 24px 0; }
+.link { border: 0; background: none; color: var(--muted); cursor: pointer; text-decoration: underline; padding: 8px; font-size: inherit; }
+a { color: inherit; }
+.banner { background: var(--accent-soft); border-radius: var(--r); padding: 12px 14px; font-size: 14px; margin-bottom: 18px; }
+.banner.demo { background: var(--sunken); }
+.ok-box { background: var(--sunken); border-radius: var(--r); padding: 16px; text-align: left; }
+.foot { margin-top: 36px; font-size: 12px; color: var(--muted); text-align: center; }
+.toast { position: fixed; left: 50%; top: calc(14px + env(safe-area-inset-top, 0px)); transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 10px 16px; border-radius: 999px; font-size: 14px; font-weight: 600; z-index: 10; max-width: calc(100% - 32px); text-align: center; }
+</style>
+</head>
+<body>
+<div class="app" id="app"><noscript>EngineCheckLight needs JavaScript.</noscript></div>
+<div id="toast" class="toast" role="status" hidden></div>
+
+<script>
+"use strict";
+const T = {
+  en: {
+    tagline: "Your mechanic in your pocket", recent: "Recent", newd: "New diagnosis", example: "Example",
+    emptyT: "Check-engine light on?", emptyS: "Enter the error code, a photo, the sound or just describe it. You get the likely cause, whether it is safe to drive, and a fair repair price.",
+    car: "Your car", make: "Make", model: "Model", year: "Year", engine: "Engine (optional)",
+    makePh: "e.g. Toyota", modelPh: "e.g. Prius", yearPh: "2016", enginePh: "e.g. 1.8 hybrid",
+    what: "What is happening?", what_hint: "Add any of these. More detail gives a better answer.",
+    code: "Error code", codeHint: "e.g. P0301", photo: "Photo", takePhoto: "Choose photo", sound: "Sound",
+    soundType: "What does it sound like?", soundWhen: "When does it happen?", describe: "Describe it",
+    textHint: "e.g. Car shakes at 100 km/h, worse when braking", diagnose: "Diagnose", back: "Back",
+    thinking: "Checking your car…", thinkingSub: "This takes 10–40 seconds.",
+    needInput: "Add a code, photo, sound or description first.", badCode: "That code doesn't look right. Codes look like P0301: one letter and four characters.",
+    safe_yes: "Safe to drive", safe_short_distance: "Drive only a short distance", safe_no: "Do not drive",
+    sev_low: "Low", sev_medium: "Medium", sev_high: "High", sev_critical: "Critical", severity: "severity",
+    causes: "Most likely causes", cost: "Fair repair price", checks: "Checks you can do", questions: "Answer these for a better result",
+    freeLeft: (n, l) => `${n} of ${l} free checks left today`, freeOut: "You've used today's free checks. Come back tomorrow, or join the Pro waitlist for unlimited checks.", proOn: "Pro · unlimited", upgrade: "See Pro",
+    scan: "Scan code from photo", scanHint: "Screenshot of a scanner app, or a photo of the dash or scan tool screen.", scanning: "Reading the code…", scanFound: "Codes found. Tap one to use it:", scanNone: "No error code found in that photo. Try a sharper, closer shot.", proOnly: "Reading codes from a photo is part of Pro.", scanGot: c => `Found ${c}.`,
+    pwTitle: "EngineCheckLight Pro", pwSub: "Unlimited diagnoses for every car you own.",
+    pw1: "Unlimited checks every day", pw2: "Read error codes from a screenshot or photo", pw3: "Fair-price check on any repair quote", pw4: "History for up to 5 cars",
+    monthly: "Monthly", yearly: "Yearly", save: "Save 48%", planned: "Planned price",
+    pwSoon: "Pro is coming soon. Leave your email and we'll tell you first, with a launch discount.", email: "Email", join: "Join the waitlist", joined: "You're on the list. We'll email you when Pro launches.",
+    demo: "Demo mode: the AI is not switched on yet, so you see a sample answer.",
+    signIn: "Sign in", signInT: "Sign in", signInS: "Keep your history on every device. We'll email you a sign-in link — no password.", sendLink: "Email me a link",
+    checkMail: e => `Check your email. We sent a sign-in link to ${e}. It works for 15 minutes.`, devLink: "Development: open the sign-in link", useOther: "Use a different email",
+    signedAs: e => `Signed in as ${e}`, signOut: "Sign out", loginOk: "You're signed in.", loginBad: "That sign-in link has expired or was already used. Ask for a new one.", loginOff: "Sign-in isn't available yet.",
+    badEmail: "Enter a valid email address.", tooMany: "Too many tries. Try again later.",
+    privacy: "Privacy", disclaimerFoot: "AI estimate, not a replacement for a mechanic.",
+    errors: { quota: "You've used today's free checks.", failed: "The diagnosis didn't work this time. Your free check was not used. Try again.", scan_failed: "Couldn't read that photo. Try again.", network: "No connection. Check your internet and try again.", photoBad: "That photo could not be read. Try a JPEG or PNG." },
+    sys: { P: "Powertrain", C: "Chassis", B: "Body", U: "Network" }, generic: "generic", maker: "maker-specific", fault: "fault",
+    sounds: { knock: "Knock", squeal: "Squeal", grind: "Grind", hiss: "Hiss", rattle: "Rattle", click: "Click", whine: "Whine", clunk: "Clunk", hum: "Hum" },
+    whens: { start: "Starting", idle: "Idle", accelerate: "Accelerating", brake: "Braking", turn: "Turning", bumps: "Over bumps", always: "All the time" },
+  },
+  ka: {
+    tagline: "შენი მექანიკოსი ჯიბეში", recent: "ბოლო", newd: "ახალი დიაგნოსტიკა", example: "მაგალითი",
+    emptyT: "ჩეკ ენჯინი აინთო?", emptyS: "შეიყვანე შეცდომის კოდი, ფოტო, ხმა ან უბრალოდ აღწერე. გაიგებ სავარაუდო მიზეზს, შეიძლება თუ არა მგზავრობა და შეკეთების სამართლიან ფასს.",
+    car: "შენი მანქანა", make: "მარკა", model: "მოდელი", year: "წელი", engine: "ძრავი (არასავალდ.)",
+    makePh: "მაგ. Toyota", modelPh: "მაგ. Prius", yearPh: "2016", enginePh: "მაგ. 1.8 ჰიბრიდი",
+    what: "რა ხდება?", what_hint: "დაამატე ნებისმიერი. მეტი დეტალი — უკეთესი პასუხი.",
+    code: "შეცდომის კოდი", codeHint: "მაგ. P0301", photo: "ფოტო", takePhoto: "ფოტოს არჩევა", sound: "ხმა",
+    soundType: "როგორი ხმაა?", soundWhen: "როდის ისმის?", describe: "აღწერე",
+    textHint: "მაგ. 100 კმ/სთ-ზე მანქანა კანკალებს, დამუხრუჭებისას უარესდება", diagnose: "დიაგნოსტიკა", back: "უკან",
+    thinking: "ვამოწმებ მანქანას…", thinkingSub: "ამას 10–40 წამი სჭირდება.",
+    needInput: "ჯერ დაამატე კოდი, ფოტო, ხმა ან აღწერა.", badCode: "კოდი არასწორად გამოიყურება. კოდი ასეთია: P0301 — ერთი ასო და ოთხი სიმბოლო.",
+    safe_yes: "მგზავრობა უსაფრთხოა", safe_short_distance: "მხოლოდ მოკლე მანძილზე", safe_no: "არ იმგზავრო",
+    sev_low: "დაბალი", sev_medium: "საშუალო", sev_high: "მაღალი", sev_critical: "კრიტიკული", severity: "სიმძიმე",
+    causes: "სავარაუდო მიზეზები", cost: "შეკეთების სამართლიანი ფასი", checks: "რისი შემოწმება შეგიძლია", questions: "უპასუხე უკეთესი შედეგისთვის",
+    freeLeft: (n, l) => `დღეს დარჩა ${n} უფასო შემოწმება ${l}-დან`, freeOut: "დღევანდელი უფასო შემოწმებები გამოიყენე. დაბრუნდი ხვალ, ან ჩაეწერე Pro-ს მოლოდინის სიაში ულიმიტო შემოწმებისთვის.", proOn: "Pro · ულიმიტო", upgrade: "Pro-ს ნახვა",
+    scan: "კოდის წაკითხვა ფოტოდან", scanHint: "სკანერის აპის სქრინშოტი, ან დაფის თუ სკანერის ეკრანის ფოტო.", scanning: "ვკითხულობ კოდს…", scanFound: "ნაპოვნი კოდები. აირჩიე ერთი:", scanNone: "ფოტოზე შეცდომის კოდი ვერ ვიპოვე. სცადე უფრო მკვეთრი და ახლო კადრი.", proOnly: "კოდის წაკითხვა ფოტოდან Pro პაკეტშია.", scanGot: c => `ნაპოვნია ${c}.`,
+    pwTitle: "EngineCheckLight Pro", pwSub: "ულიმიტო დიაგნოსტიკა ყველა შენი მანქანისთვის.",
+    pw1: "ულიმიტო შემოწმება ყოველდღე", pw2: "შეცდომის კოდის წაკითხვა სქრინშოტიდან ან ფოტოდან", pw3: "ხელოსნის ფასის შემოწმება", pw4: "ისტორია 5-მდე მანქანისთვის",
+    monthly: "თვიური", yearly: "წლიური", save: "დაზოგე 48%", planned: "დაგეგმილი ფასი",
+    pwSoon: "Pro მალე გაეშვება. დატოვე ელფოსტა და პირველს შეგატყობინებთ, გაშვების ფასდაკლებით.", email: "ელფოსტა", join: "მოლოდინის სიაში ჩაწერა", joined: "სიაში ხარ. Pro-ს გაშვებისას მოგწერთ.",
+    demo: "სადემონსტრაციო რეჟიმი: AI ჯერ არ არის ჩართული, ამიტომ ხედავ ნიმუშ პასუხს.",
+    signIn: "შესვლა", signInT: "შესვლა", signInS: "ისტორია შეინახე ყველა მოწყობილობაზე. ელფოსტაზე გამოგიგზავნით შესვლის ბმულს — პაროლის გარეშე.", sendLink: "ბმულის გამოგზავნა",
+    checkMail: e => `შეამოწმე ელფოსტა. შესვლის ბმული გავუგზავნეთ ${e}-ს. მოქმედებს 15 წუთი.`, devLink: "დეველოპმენტი: შესვლის ბმულის გახსნა", useOther: "სხვა ელფოსტის გამოყენება",
+    signedAs: e => `შესული ხარ როგორც ${e}`, signOut: "გასვლა", loginOk: "შესული ხარ.", loginBad: "შესვლის ბმული ვადაგასულია ან უკვე გამოყენებულია. მოითხოვე ახალი.", loginOff: "შესვლა ჯერ მიუწვდომელია.",
+    badEmail: "შეიყვანე სწორი ელფოსტა.", tooMany: "ძალიან ბევრი მცდელობა. სცადე მოგვიანებით.",
+    privacy: "კონფიდენციალურობა", disclaimerFoot: "AI-ის შეფასება, ხელოსანს არ ცვლის.",
+    errors: { quota: "დღევანდელი უფასო შემოწმებები გამოიყენე.", failed: "დიაგნოსტიკა ამჯერად ვერ მოხერხდა. უფასო შემოწმება არ დაგეხარჯა. სცადე თავიდან.", scan_failed: "ფოტო ვერ წავიკითხე. სცადე თავიდან.", network: "კავშირი არ არის. შეამოწმე ინტერნეტი და სცადე თავიდან.", photoBad: "ფოტო ვერ წავიკითხე. სცადე JPEG ან PNG." },
+    sys: { P: "ძრავი/ტრანსმისია", C: "შასი", B: "ძარა", U: "ქსელი" }, generic: "ზოგადი", maker: "მწარმოებლის", fault: "ხარვეზი",
+    sounds: { knock: "კაკუნი", squeal: "წრიპინი", grind: "ხეხვა", hiss: "შიშინი", rattle: "ჩხრიალი", click: "ტკაცუნი", whine: "ზუზუნი", clunk: "ბრახუნი", hum: "გუგუნი" },
+    whens: { start: "დაქოქვისას", idle: "ადგილზე", accelerate: "აჩქარებისას", brake: "დამუხრუჭებისას", turn: "მოხვევისას", bumps: "ორმოებზე", always: "მუდმივად" },
+  },
+};
+
+const LS = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (_) { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (_) {} },
+};
+const blankForm = () => ({ make: "", model: "", year: "", engine: "", code: "", text: "", sound: null, when: [], photo: null, photoUrl: null });
+const S = {
+  lang: LS.get("ecl-lang", (navigator.language || "").startsWith("ka") ? "ka" : "en"),
+  view: "home", error: "", notice: "", loading: true,
+  me: { user: null, quota: { limit: 3, remaining: 3, pro: false }, features: { login: false, live: false } },
+  form: { ...blankForm(), ...LS.get("ecl-car", {}) },
+  history: LS.get("ecl-history", []), current: null, yearly: true,
+  scan: { busy: false, codes: null, msg: "" },
+  auth: { email: "", sent: false, devLink: "", busy: false, err: "" },
+  wait: { email: "", done: false, busy: false, err: "" },
+};
+if (!T[S.lang]) S.lang = "en";
+const t = k => T[S.lang][k];
+const q = () => S.me.quota;
+const canCheck = () => q().pro || q().remaining > 0;
+const quotaLine = () => q().pro ? `<span class="plan-badge">${t("proOn")}</span>` : t("freeLeft")(q().remaining, q().limit);
+
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const sevColor = s => ({ low: "var(--ok)", medium: "var(--warn)", high: "var(--high)" }[s] || "var(--crit)");
+const icons = {
+  engine: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 5h6M11 5v3M5 12v4M3 11v6M5 14H3M7 8h7l2 2.5h2.5V9H21v9h-2.5v-1.5H16L13.5 19H9l-2-2H5v-6z"/></svg>',
+  wrench: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 0 5 5L21 13l-8 8-3-3 1.3-1.3a4 4 0 0 0-5-5L3 10l2-2 3.3 3.3"/></svg>',
+  code: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10v4M11 10v4M15 10v4"/></svg>',
+  cam: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>',
+  wave: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 12h2M7 8v8M11 5v14M15 9v6M19 11v2"/></svg>',
+  text: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 7h14M5 12h14M5 17h9"/></svg>',
+  scan: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3M7 12h10"/></svg>',
+  user: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>',
+  check: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg>',
+  warn: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17v.5"/></svg>',
+  stop: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M8 3h8l5 5v8l-5 5H8l-5-5V8z"/><path d="M9 9l6 6M15 9l-6 6"/></svg>',
+};
+
+// ---------- API ----------
+async function api(path, body) {
+  const opts = { credentials: "same-origin", headers: {} };
+  if (body !== undefined) { opts.method = "POST"; opts.headers["content-type"] = "application/json"; opts.body = JSON.stringify(body); }
+  let res;
+  try { res = await fetch(path, opts); } catch (_) { return { ok: false, status: 0, data: { error: "network" } }; }
+  let data = {};
+  try { data = await res.json(); } catch (_) {}
+  return { ok: res.ok, status: res.status, data };
+}
+async function loadMe() {
+  const r = await api("/api/me");
+  if (r.ok) S.me = r.data;
+  if (S.me.user) {
+    const h = await api("/api/history");
+    if (h.ok) S.history = h.data.items || [];
+  }
+}
+
+// ---------- helpers ----------
+function decodeCode(raw) {
+  const c = (raw || "").toUpperCase().replace(/[\s-]/g, "");
+  if (!/^[PCBU][0-3][0-9A-F]{3}$/.test(c)) return null;
+  return { c, sys: t("sys")[c[0]], generic: c[1] === "0" || c[1] === "2" };
+}
+// Shrink a photo to at most 1568 px on the long side and send it as JPEG (well under the 4 MB limit).
+function compressImage(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image(), url = URL.createObjectURL(file);
+    img.onload = () => {
+      const k = Math.min(1, 1568 / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement("canvas");
+      c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      resolve({ media_type: "image/jpeg", data: c.toDataURL("image/jpeg", 0.85).split(",")[1] });
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("bad image")); };
+    img.src = url;
+  });
+}
+let toastTimer;
+function toast(msg) {
+  const el = document.getElementById("toast");
+  el.textContent = msg; el.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.hidden = true; }, 3800);
+}
+
+// ---------- views ----------
+function topbar(showBack) {
+  const u = S.me.user;
+  const acct = S.me.features.login || u
+    ? `<button class="acct${u ? " on" : ""}" data-go="account" aria-label="${u ? esc(t("signedAs")(u.email)) : t("signIn")}">${u ? esc(u.email[0].toUpperCase()) : icons.user}</button>` : "";
+  return `<div class="topbar">
+    ${showBack ? `<button class="back" data-go="home">← ${t("back")}</button>` : `<div class="brand"><div class="lamp">${icons.engine}</div><h1 class="wordmark">Engine<span>CheckLight</span></h1></div>`}
+    <div class="tools"><div class="seg" role="group" aria-label="Language">
+      <button data-lang="en" aria-pressed="${S.lang === "en"}">EN</button>
+      <button data-lang="ka" aria-pressed="${S.lang === "ka"}">ქა</button>
+    </div>${acct}</div></div>`;
+}
+const demoBanner = () => S.me.features.live ? "" : `<div class="banner demo">${t("demo")}</div>`;
+const footer = () => `<p class="foot">${t("disclaimerFoot")} · <a href="/privacy.html${S.lang === "ka" ? "#ka" : ""}">${t("privacy")}</a></p>`;
+
+function viewHome() {
+  const list = S.history;
+  return `${topbar(false)}<p class="tag">${t("tagline")}</p>
+  ${demoBanner()}
+  <div class="stack">
+  ${list.length ? `<div class="label">${t("recent")}</div>` + list.map((h, i) => `<button class="panel hist" data-open="${i}">
+      <span class="dot" style="background:${sevColor(h.d.severity)}"></span>
+      <span class="t">${esc(h.d.summary)}</span>
+      <span class="s">${esc([h.req.year, h.req.make, h.req.model, h.req.code].filter(Boolean).join(" · "))}</span>
+    </button>`).join("")
+    : `<div class="panel empty"><div class="lamp" style="width:48px;height:48px;margin:0 auto">${icons.engine}</div><h2>${t("emptyT")}</h2><p class="note">${t("emptyS")}</p></div>`}
+  <p class="note">${quotaLine()}${q().pro ? "" : ` · <button class="link" data-go="paywall" style="padding:0">${t("upgrade")}</button>`}</p>
+  </div>${footer()}
+  <button class="fab" data-go="new">${icons.wrench} ${t("newd")}</button>`;
+}
+
+function viewNew() {
+  const f = S.form, dc = decodeCode(f.code);
+  return `${topbar(true)}<h2 style="font-size:32px;font-weight:800;margin-bottom:18px">${t("newd")}</h2>
+  <div class="stack">
+    <div class="label">${t("car")}</div>
+    <div class="row">
+      <div class="field"><label for="make">${t("make")}</label><input id="make" data-f="make" autocomplete="off" placeholder="${t("makePh")}" value="${esc(f.make)}"></div>
+      <div class="field"><label for="model">${t("model")}</label><input id="model" data-f="model" autocomplete="off" placeholder="${t("modelPh")}" value="${esc(f.model)}"></div>
+    </div>
+    <div class="row yr">
+      <div class="field"><label for="year">${t("year")}</label><input id="year" data-f="year" inputmode="numeric" maxlength="4" placeholder="${t("yearPh")}" value="${esc(f.year)}"></div>
+      <div class="field"><label for="engine">${t("engine")}</label><input id="engine" data-f="engine" autocomplete="off" placeholder="${t("enginePh")}" value="${esc(f.engine)}"></div>
+    </div>
+    <div class="label" style="margin-top:14px">${t("what")}</div>
+    <p class="note" style="margin-top:-6px">${t("what_hint")}</p>
+
+    <div class="panel"><div class="sec-h">${icons.code} ${t("code")}</div>
+      <div class="field"><input id="code" class="code-in" data-f="code" maxlength="6" autocomplete="off" autocapitalize="characters" placeholder="${t("codeHint")}" value="${esc(f.code)}" aria-label="${t("code")}"></div>
+      <div id="anatomy">${anatomy(dc)}</div>
+      <div class="scan-row">
+        ${q().pro ? `<label class="btn-o" for="scanIn">${icons.scan} ${t("scan")}</label><input id="scanIn" type="file" accept="image/*" hidden>`
+          : `<button class="btn-o" data-act="scanlocked">${icons.scan} ${t("scan")} <span class="pro">PRO</span></button>`}
+      </div>
+      <p class="hint">${S.scan.busy ? t("scanning") : esc(S.scan.msg || t("scanHint"))}</p>
+      ${S.scan.codes && S.scan.codes.length > 1 ? `<div class="found">${S.scan.codes.map(c => `<button class="chip" data-pick="${esc(c)}" aria-pressed="${decodeCode(S.form.code)?.c === c}">${esc(c)}</button>`).join("")}</div>` : ""}
+    </div>
+
+    <div class="panel"><div class="sec-h">${icons.cam} ${t("photo")}</div>
+      ${f.photoUrl ? `<div class="preview"><img src="${f.photoUrl}" alt=""><button data-act="rmphoto" aria-label="Remove photo">✕</button></div>`
+        : `<label class="btn-o" for="photo">${icons.cam} ${t("takePhoto")}</label><input id="photo" type="file" accept="image/*" hidden>`}
+    </div>
+
+    <div class="panel"><div class="sec-h">${icons.wave} ${t("sound")}</div>
+      <p class="note" style="margin-bottom:6px">${t("soundType")}</p>
+      <div class="chips">${Object.entries(t("sounds")).map(([k, v]) => `<button class="chip" data-sound="${k}" aria-pressed="${f.sound === k}">${v}</button>`).join("")}</div>
+      ${f.sound ? `<p class="note" style="margin:12px 0 6px">${t("soundWhen")}</p>
+      <div class="chips">${Object.entries(t("whens")).map(([k, v]) => `<button class="chip" data-when="${k}" aria-pressed="${f.when.includes(k)}">${v}</button>`).join("")}</div>` : ""}
+    </div>
+
+    <div class="panel"><div class="sec-h">${icons.text} ${t("describe")}</div>
+      <div class="field"><textarea id="text" data-f="text" placeholder="${t("textHint")}" aria-label="${t("describe")}">${esc(f.text)}</textarea></div>
+    </div>
+
+    ${S.error ? `<p class="err" role="alert">${esc(S.error)}</p>` : ""}
+    <button class="primary" data-act="diagnose">${t("diagnose")}</button>
+    <p class="note" style="text-align:center">${quotaLine()}</p>
+  </div>`;
+}
+
+function anatomy(dc) {
+  if (!dc) return "";
+  return `<div class="anatomy"><span><b>${dc.c[0]}</b> ${esc(dc.sys)}</span><span><b>${dc.c[1]}</b> ${dc.generic ? t("generic") : t("maker")}</span><span><b>${dc.c.slice(2)}</b> ${t("fault")}</span></div>`;
+}
+
+function viewThinking() {
+  return `<div class="thinking"><div>
+    <svg class="gauge" viewBox="0 0 120 66" aria-hidden="true"><path d="M10 60a50 50 0 0 1 100 0" fill="none" stroke="var(--line)" stroke-width="8" stroke-linecap="round"/><path d="M85 17a50 50 0 0 1 25 43" fill="none" stroke="var(--accent)" stroke-width="8" stroke-linecap="round"/><line class="needle" x1="60" y1="60" x2="60" y2="18" stroke="var(--fg)" stroke-width="4" stroke-linecap="round"/><circle cx="60" cy="60" r="6" fill="var(--fg)"/></svg>
+    <h2 style="font-size:28px;margin-top:14px">${t("thinking")}</h2><p class="note">${t("thinkingSub")}</p></div></div>`;
+}
+
+function viewResult() {
+  const d = S.current.d, c = sevColor(d.severity);
+  const sIcon = { yes: icons.check, short_distance: icons.warn }[d.safe_to_drive] || icons.stop;
+  const rc = d.repair_cost;
+  return `${topbar(true)}
+  ${S.current.demo ? demoBanner() : ""}
+  <div class="verdict" style="--c:${c}">
+    <div class="sev">● ${t("sev_" + d.severity) || esc(d.severity)} ${t("severity")}</div>
+    <h2>${esc(d.summary)}</h2>
+    <div class="safe"><span style="color:${c}">${sIcon}</span><div><b>${t("safe_" + d.safe_to_drive) || esc(d.safe_to_drive)}</b><div>${esc(d.safety_note)}</div></div></div>
+  </div>
+  <div class="h3">${t("causes")}</div>
+  <div class="panel">${(d.causes || []).map(x => { const p = Math.round(Math.max(0, Math.min(1, Number(x.likelihood) || 0)) * 100); return `<div class="cause"><div class="top"><span>${esc(x.name)}</span><span class="pct">${p}%</span></div><div class="bar"><i style="width:${p}%"></i></div><p>${esc(x.explanation)}</p></div>`; }).join("")}</div>
+  ${rc && rc.low != null ? `<div class="h3">${t("cost")}</div><div class="cost"><small>${esc(rc.currency || "USD")}</small>${Math.round(rc.low)}–${Math.round(rc.high)}</div><p class="note">${esc(rc.note)}</p>` : ""}
+  ${d.diy_checks?.length ? `<div class="h3">${t("checks")}</div><ul class="list">${d.diy_checks.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}
+  ${d.questions?.length ? `<div class="h3">${t("questions")}</div><ul class="list">${d.questions.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}
+  <p class="disc">${quotaLine()}<br>${esc(d.disclaimer)}</p>${footer()}`;
+}
+
+function viewPaywall() {
+  const w = S.wait;
+  return `${topbar(true)}<div class="pw">
+    <div class="lamp" style="width:56px;height:56px;margin:8px auto 0">${icons.engine}</div>
+    <h2>${t("pwTitle")}</h2><p>${t("pwSub")}</p>
+    ${S.notice ? `<div class="banner">${esc(S.notice)}</div>` : !q().pro && q().remaining === 0 ? `<div class="banner">${t("freeOut")}</div>` : ""}
+    <ul class="list pw-list"><li>${t("pw1")}</li><li>${t("pw2")}</li><li>${t("pw3")}</li><li>${t("pw4")}</li></ul>
+    <div class="stack">
+      <div class="soon">${t("planned")}</div>
+      <button class="plan" data-plan="y" aria-pressed="${S.yearly}"><span class="n">${t("yearly")}<span class="save">${t("save")}</span></span><span class="p">$49.99</span></button>
+      <button class="plan" data-plan="m" aria-pressed="${!S.yearly}"><span class="n">${t("monthly")}</span><span class="p">$7.99</span></button>
+      ${w.done ? `<div class="ok-box" role="status">${t("joined")}</div>` : `
+      <p class="note" style="text-align:left">${t("pwSoon")}</p>
+      <form class="stack" data-form="wait" novalidate style="text-align:left">
+        <div class="field"><label for="wemail">${t("email")}</label><input id="wemail" type="email" autocomplete="email" required value="${esc(w.email || S.me.user?.email || "")}"></div>
+        ${w.err ? `<p class="err" role="alert">${esc(w.err)}</p>` : ""}
+        <button class="primary" type="submit" ${w.busy ? "disabled" : ""}>${t("join")}</button>
+      </form>`}
+    </div></div>${footer()}`;
+}
+
+function viewAccount() {
+  const u = S.me.user, a = S.auth;
+  if (u) return `${topbar(true)}<h2 style="font-size:32px;font-weight:800;margin-bottom:18px">${t("signInT")}</h2>
+    <div class="stack"><div class="panel"><b>${esc(t("signedAs")(u.email))}</b><p class="note" style="margin-top:4px">${quotaLine()}</p></div>
+    <button class="btn-o" data-act="logout" style="align-self:flex-start">${t("signOut")}</button></div>${footer()}`;
+  if (!S.me.features.login) return `${topbar(true)}<p>${t("loginOff")}</p>`;
+  return `${topbar(true)}<h2 style="font-size:32px;font-weight:800;margin-bottom:10px">${t("signInT")}</h2>
+  <p class="note" style="margin-bottom:18px">${t("signInS")}</p>
+  ${a.sent ? `<div class="stack"><div class="ok-box" role="status">${esc(t("checkMail")(a.email))}</div>
+      ${a.devLink ? `<a class="btn-o" href="${esc(a.devLink)}" style="align-self:flex-start">${t("devLink")}</a>` : ""}
+      <button class="link" data-act="authreset" style="align-self:flex-start;padding-left:0">${t("useOther")}</button></div>`
+  : `<form class="stack" data-form="auth" novalidate>
+      <div class="field"><label for="aemail">${t("email")}</label><input id="aemail" type="email" autocomplete="email" required value="${esc(a.email)}"></div>
+      ${a.err ? `<p class="err" role="alert">${esc(a.err)}</p>` : ""}
+      <button class="primary" type="submit" ${a.busy ? "disabled" : ""}>${t("sendLink")}</button>
+    </form>`}${footer()}`;
+}
+
+const app = document.getElementById("app");
+function render(keepScroll) {
+  document.documentElement.lang = S.lang;
+  app.innerHTML = { home: viewHome, new: viewNew, thinking: viewThinking, result: viewResult, paywall: viewPaywall, account: viewAccount }[S.view]();
+  if (!keepScroll) window.scrollTo(0, 0);
+}
+function go(view) { S.view = view; S.error = ""; if (view !== "paywall") S.notice = ""; render(); }
+
+// ---------- actions ----------
+async function scanCode(file) {
+  if (!q().pro) { S.notice = t("proOnly"); go("paywall"); return; }
+  S.scan = { busy: true, codes: null, msg: "" }; render(true);
+  let image;
+  try { image = await compressImage(file); } catch (_) { S.scan = { busy: false, codes: null, msg: t("errors").photoBad }; render(true); return; }
+  const r = await api("/api/scan-code", { image });
+  if (!r.ok) {
+    if (r.data.error === "pro_required") { S.scan.busy = false; S.notice = t("proOnly"); go("paywall"); return; }
+    S.scan = { busy: false, codes: null, msg: r.status === 0 ? t("errors").network : t("errors").scan_failed }; render(true); return;
+  }
+  const codes = (r.data.codes || []).map(c => c.code).filter(Boolean);
+  if (!codes.length) { S.scan = { busy: false, codes: null, msg: t("scanNone") }; render(true); return; }
+  S.form.code = codes[0];
+  S.scan = { busy: false, codes, msg: codes.length > 1 ? t("scanFound") : t("scanGot")(codes[0]) };
+  render(true);
+}
+
+async function diagnose() {
+  const f = S.form, dc = decodeCode(f.code);
+  if (f.code.trim() && !dc) { S.error = t("badCode"); render(true); return; }
+  if (!dc && !f.text.trim() && !f.sound && !f.photo) { S.error = t("needInput"); render(true); return; }
+  if (!canCheck()) { go("paywall"); return; }
+  LS.set("ecl-car", { make: f.make, model: f.model, year: f.year, engine: f.engine });
+  S.error = ""; S.view = "thinking"; render();
+
+  const body = { lang: S.lang, car: { make: f.make, model: f.model, year: f.year ? Number(f.year) : undefined, engine: f.engine } };
+  if (dc) body.code = dc.c;
+  if (f.sound) body.sound = { type: f.sound, when: f.when };
+  if (f.text.trim()) body.text = f.text.trim();
+  if (f.photo) {
+    try { body.image = await compressImage(f.photo); } catch (_) { S.view = "new"; S.error = t("errors").photoBad; render(); return; }
+  }
+  const r = await api("/api/diagnose", body);
+  if (!r.ok) {
+    if (r.data.quota) S.me.quota = r.data.quota;
+    if (r.data.error === "quota_exceeded") { S.notice = ""; go("paywall"); return; }
+    S.view = "new";
+    S.error = r.status === 0 ? t("errors").network : r.data.error === "bad_input" ? (r.data.message || t("needInput")) : t("errors").failed;
+    render(); return;
+  }
+  const { item, meta, ...d } = r.data;
+  if (meta?.quota) S.me.quota = meta.quota;
+  const entry = { id: item.id, at: item.at, req: item.req, d };
+  S.history.unshift(entry);
+  if (!S.me.user) LS.set("ecl-history", S.history.slice(0, 20));
+  S.current = { ...entry, demo: !meta?.live };
+  // keep the car for next time, clear the symptoms
+  S.form = { ...blankForm(), make: f.make, model: f.model, year: f.year, engine: f.engine };
+  if (f.photoUrl) URL.revokeObjectURL(f.photoUrl);
+  S.scan = { busy: false, codes: null, msg: "" };
+  S.view = "result"; render();
+}
+
+async function startAuth(email) {
+  S.auth = { ...S.auth, email, busy: true, err: "" }; render(true);
+  const r = await api("/api/auth/start", { email, lang: S.lang });
+  S.auth.busy = false;
+  if (r.ok) { S.auth.sent = true; S.auth.devLink = r.data.devLink || ""; }
+  else S.auth.err = { bad_email: t("badEmail"), too_many: t("tooMany"), login_unavailable: t("loginOff"), network: t("errors").network }[r.data.error] || t("errors").network;
+  render(true);
+}
+
+async function joinWaitlist(email) {
+  S.wait = { ...S.wait, email, busy: true, err: "" }; render(true);
+  const r = await api("/api/waitlist", { email, lang: S.lang, plan: S.yearly ? "yearly" : "monthly" });
+  S.wait.busy = false;
+  if (r.ok) S.wait.done = true;
+  else S.wait.err = { bad_email: t("badEmail"), too_many: t("tooMany"), network: t("errors").network }[r.data.error] || t("errors").network;
+  render(true);
+}
+
+app.addEventListener("click", async e => {
+  const el = e.target.closest("button, [data-go]");
+  if (!el || (el.type === "submit" && el.form)) return;
+  if (el.dataset.lang) { S.lang = el.dataset.lang; LS.set("ecl-lang", S.lang); render(true); return; }
+  if (el.dataset.go) {
+    if (el.dataset.go === "new" && !canCheck()) { S.notice = ""; go("paywall"); return; }
+    go(el.dataset.go); return;
+  }
+  if (el.dataset.open != null) { S.current = S.history[+el.dataset.open]; go("result"); return; }
+  if (el.dataset.sound) { S.form.sound = S.form.sound === el.dataset.sound ? null : el.dataset.sound; if (!S.form.sound) S.form.when = []; render(true); return; }
+  if (el.dataset.when) { const w = el.dataset.when, a = S.form.when; S.form.when = a.includes(w) ? a.filter(x => x !== w) : [...a, w]; render(true); return; }
+  if (el.dataset.plan) { S.yearly = el.dataset.plan === "y"; render(true); return; }
+  if (el.dataset.pick) { S.form.code = el.dataset.pick; render(true); return; }
+  const act = el.dataset.act;
+  if (act === "rmphoto") { if (S.form.photoUrl) URL.revokeObjectURL(S.form.photoUrl); S.form.photo = null; S.form.photoUrl = null; render(true); return; }
+  if (act === "diagnose") { diagnose(); return; }
+  if (act === "scanlocked") { S.notice = t("proOnly"); go("paywall"); return; }
+  if (act === "authreset") { S.auth = { email: S.auth.email, sent: false, devLink: "", busy: false, err: "" }; render(true); return; }
+  if (act === "logout") {
+    await api("/api/auth/logout", {});
+    S.history = LS.get("ecl-history", []);
+    await loadMe(); go("home"); return;
+  }
+});
+app.addEventListener("submit", e => {
+  e.preventDefault();
+  const form = e.target.dataset.form;
+  if (form === "auth") startAuth(document.getElementById("aemail").value.trim());
+  if (form === "wait") joinWaitlist(document.getElementById("wemail").value.trim());
+});
+app.addEventListener("input", e => {
+  const k = e.target.dataset.f; if (!k) return;
+  S.form[k] = e.target.value;
+  if (k === "code") document.getElementById("anatomy").innerHTML = anatomy(decodeCode(e.target.value));
+});
+app.addEventListener("change", e => {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  if (e.target.id === "scanIn") { scanCode(file); return; }
+  if (e.target.id === "photo") {
+    if (S.form.photoUrl) URL.revokeObjectURL(S.form.photoUrl);
+    S.form.photo = file; S.form.photoUrl = URL.createObjectURL(file); render(true);
+  }
+});
+
+(async () => {
+  const p = new URLSearchParams(location.search);
+  const login = p.get("login");
+  if (login) history.replaceState(null, "", location.pathname);
+  await loadMe();
+  S.loading = false;
+  render();
+  if (login === "ok" && S.me.user) toast(t("loginOk"));
+  if (login === "expired") { S.view = "account"; render(); toast(t("loginBad")); }
+})();
+
+if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("/sw.js").catch(() => {});
+</script>
+</body>
+</html>
