@@ -4,6 +4,9 @@ import { createHash, randomBytes } from 'node:crypto';
 import { InputError, parseImage, parseInput } from './diagnose.js';
 import { describeCode } from './dtc.js';
 import { loginEmail } from './email.js';
+import checkCode, { cachedAnswer, checkInput } from './research/diagnose.mjs';
+import { JOB_STALE_MS, addHistory, historyItem, jobKey, kbOn } from './research/jobs.mjs';
+import { createRecallTranslator } from './research/translate.mjs';
 
 const DAY_MS = 86_400_000;
 const LOGIN_TTL_MS = 15 * 60_000;
@@ -45,7 +48,7 @@ async function readJson(req) {
 
 /**
  * deps: { store, env, ip, now(), diagnose(input), scan(image), sendEmail?(msg) }
- * env keys used: FREE_DAILY, IP_DAILY, PRO_EMAILS, SITE_URL, DEV_LOGIN_LINKS, LIVE
+ * env keys used: FREE_DAILY, IP_DAILY, PRO_EMAILS, SITE_URL, DEV_LOGIN_LINKS, LIVE, ANTHROPIC_API_KEY, ANTHROPIC_MODEL
  */
 export async function handle(req, deps) {
   const { store, env = {}, ip = 'unknown' } = deps;
@@ -185,6 +188,74 @@ export async function handle(req, deps) {
         await store.set(`history:${user.id}`, list.slice(0, HISTORY_MAX));
       }
       return out({ ...diagnosis, item: { id: item.id, at: item.at, req: item.req }, meta: { model: result.model, live: env.LIVE === '1', quota: await quota() } });
+    }
+
+    // Code check with live web research (src/research/). Steps:
+    //   basic    free, instant: exact code breakdown + NHTSA recalls.
+    //   quick    one fast search (synchronous). Uses a daily check only if it found the definition.
+    //   research extended two-stage search as a background job -> 202 { jobId }, then poll
+    //            GET /api/check/<jobId>. Uses a daily check only when it succeeds.
+    // Never charged for a knowledge-base hit or an error.
+    if (path === '/api/check' && method === 'POST') {
+      const canSpend = async () => {
+        if (isPro) return true;
+        if ((await quota()).remaining <= 0) return false;
+        return ((await store.get(`quota:${day}:ip:${ip}`))?.n ?? 0) < ipDaily;
+      };
+      const kb = kbOn(store);
+      const apiKey = env.ANTHROPIC_API_KEY?.trim() || undefined;
+      const copy = req.clone(); // checkCode reads the body; the copy is for the history entry / job
+      const body = await copy.json().catch(() => ({}));
+
+      if (body.step === 'research') {
+        const input = checkInput(body);
+        if (input.error) return out({ error: input.error }, 400);
+        if (!apiKey) return out({ error: 'not_configured' }, 500);
+        const hit = await cachedAnswer(body, kb);
+        if (hit) return out({ step: 'research', code: input.dtc, diagnosis: hit.diagnosis, cached: true, researched_at: hit.at, quota: await quota() });
+        if (!(await canSpend())) return out({ error: 'no_credits', quota: await quota() }, 402);
+        if (!deps.startJob) return out({ error: 'not_configured' }, 500);
+        const jobId = token().slice(0, 24);
+        const fields = ['code', 'make', 'model', 'year', 'engine', 'text', 'lang'];
+        const jobInput = Object.fromEntries(fields.filter((k) => body[k] != null).map((k) => [k, String(body[k]).slice(0, 2000)]));
+        await store.set(jobKey(jobId), { status: 'queued', input: jobInput, who, ip, day, pro: isPro, userId: user?.id ?? null, createdAt: now });
+        try {
+          await deps.startJob(jobId, url.origin);
+        } catch (err) {
+          console.error('job start failed', err);
+          await store.set(jobKey(jobId), { status: 'failed', error: 'research_failed', who });
+          return out({ error: 'research_failed' }, 502);
+        }
+        return out({ step: 'research', jobId, status: 'queued' }, 202);
+      }
+
+      const credits = { available: canSpend, async charge() {
+        if (!isPro) {
+          await store.incr(`quota:${day}:${who}`);
+          await store.incr(`quota:${day}:ip:${ip}`);
+        }
+        return quota();
+      } };
+      const res = await checkCode(req, { apiKey, model: env.ANTHROPIC_MODEL, credits, kb, localizeNhtsa: createRecallTranslator({ apiKey, store }) });
+      const data = await res.json();
+      if (res.status === 402) return out({ ...data, quota: await quota() }, 402);
+      if (res.status !== 200 || data.step === 'basic') return out(data, res.status);
+
+      const item = historyItem(token().slice(0, 12), now, body, data);
+      if (user && data.diagnosis?.definition?.found) await addHistory(store, user.id, item, HISTORY_MAX);
+      return out({ ...data, quota: data.quota ?? (await quota()), item: { id: item.id, at: item.at, req: item.req } });
+    }
+
+    const jobMatch = path.match(/^\/api\/check\/([A-Za-z0-9_-]{8,64})$/);
+    if (jobMatch && method === 'GET') {
+      const job = await store.get(jobKey(jobMatch[1]));
+      if (!job || job.who !== who) return out({ error: 'not_found' }, 404);
+      let { status } = job;
+      const stale = (status === 'queued' && now - job.createdAt > 5 * 60_000) || (status === 'running' && now - job.startedAt > JOB_STALE_MS);
+      if (stale) status = 'failed';
+      if (status === 'done') return out({ status, ...job.result, item: job.item, quota: await quota() });
+      if (status === 'failed') return out({ status, error: job.error ?? 'research_failed', quota: await quota() });
+      return out({ status });
     }
 
     if (path === '/api/scan-code' && method === 'POST') {

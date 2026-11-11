@@ -17,10 +17,11 @@ Functions do not deploy by drag-and-drop. Use one of:
 |---|---|---|
 | SITE_URL | https://enginechecklight.com | sign-in links |
 | ANTHROPIC_API_KEY | from console.anthropic.com | live AI (without it: demo mode) |
+| ANTHROPIC_MODEL | optional, default claude-sonnet-5-5 | model for live code research |
 | RESEND_API_KEY | from resend.com | sign-in emails (without it: sign-in hidden) |
 | EMAIL_FROM | EngineCheckLight <login@enginechecklight.com> | sender (domain verified in Resend) |
 | PRO_EMAILS | comma-separated emails | Pro for testers |
 | FREE_DAILY / IP_DAILY | 3 / 15 | optional limits |
 
 ## API
-GET /api/me · POST /api/auth/start · GET /api/auth/verify · POST /api/auth/logout · POST /api/diagnose · POST /api/scan-code (Pro) · GET /api/history · POST /api/waitlist · GET /api/codes/:code
+GET /api/me · POST /api/auth/start · GET /api/auth/verify · POST /api/auth/logout · POST /api/diagnose · POST /api/check (code + live web research, see docs/real-search.md) · POST /api/scan-code (Pro) · GET /api/history · POST /api/waitlist · GET /api/codes/:code

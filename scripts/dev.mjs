@@ -9,11 +9,14 @@ import { fileURLToPath } from 'node:url';
 import { handle } from '../src/app.js';
 import { buildDeps } from '../src/runtime.js';
 import { memoryStore } from '../src/store.js';
+import { runJob } from '../src/research/jobs.mjs';
 
 const PORT = Number(process.env.PORT ?? 8888);
 const root = fileURLToPath(new URL('../public/', import.meta.url));
 const env = { DEV_LOGIN_LINKS: '1', SITE_URL: `http://localhost:${PORT}`, ...process.env };
 const deps = { ...buildDeps(env), store: memoryStore() };
+// Extended research: Netlify runs it as a background function; here it simply runs in-process.
+deps.startJob = async (jobId) => { runJob(jobId, { store: deps.store, env: deps.env }).catch((e) => console.error('job failed', e)); };
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.svg': 'image/svg+xml', '.webmanifest': 'application/manifest+json', '.json': 'application/json' };
 
 createServer(async (req, res) => {
