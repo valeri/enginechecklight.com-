@@ -63,7 +63,7 @@ assert.equal(st, 200);
 const g = out.diagnosis;
 assert.ok(calls[0].tools[0].allowed_domains.includes("nhtsa.gov"));       // stage A official only
 assert.equal(calls[1].tools[0].allowed_domains, undefined);                // stage B open
-assert.deepEqual(calls[2].tool_choice, { type: "tool", name: "submit_diagnosis" }); // forced after end_turn
+assert.equal(calls[2].tool_choice, undefined); assert.match(calls[2].messages.at(-1).content, /submit_diagnosis now/); // asked to submit after end_turn (Sonnet 5.5 rejects forced tool_choice)
 assert.equal(g.definition.source_url, TSB); assert.equal(g.definition.official, true); // official wins
 assert.deepEqual(g.causes[0].source_urls, [FORUM]);                        // invented URL dropped
 assert.equal(g.bulletins.length, 1); assert.equal(g.bulletins[0].url, TSB);

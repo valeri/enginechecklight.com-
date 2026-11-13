@@ -5,6 +5,7 @@
 // with a made-up or already used id does nothing.
 import checkCode from './diagnose.mjs';
 import { createRecallTranslator } from './translate.mjs';
+import { addCredits } from '../credits.js';
 
 export const JOB_STALE_MS = 16 * 60_000; // background functions stop at 15 minutes
 export const jobKey = (id) => `job:${id}`;
@@ -35,15 +36,8 @@ export async function runJob(id, { store, env, now = Date.now }) {
   if (!job || job.status !== 'queued') return;
   await store.set(key, { ...job, status: 'running', startedAt: now() });
 
-  const credits = {
-    available: async () => true, // checked by the router before the job was created
-    async charge() {
-      if (!job.pro) {
-        await store.incr(`quota:${job.day}:${job.who}`);
-        await store.incr(`quota:${job.day}:ip:${job.ip}`);
-      }
-    },
-  };
+  // Credits were checked by the router before the job was created. Charged below, after success.
+  const credits = { available: async () => true, charge: async () => undefined };
   let status = 500, data = { error: 'research_failed' };
   try {
     const apiKey = env.ANTHROPIC_API_KEY?.trim() || undefined;
@@ -56,10 +50,18 @@ export async function runJob(id, { store, env, now = Date.now }) {
     console.error('job failed', err);
   }
 
+  const day = new Date(now()).toISOString().slice(0, 10);
+  const cost = data.usage?.cost_usd ?? 0;
+  if (cost > 0) await store.add(`spend:${day}`, Math.round(cost * 1e6));
+
   if (status !== 200) {
+    if (job.userId) await store.incr(`rl:fail:${day}:${job.userId}`);
     await store.set(key, { ...job, status: 'failed', error: data.error ?? 'research_failed', finishedAt: now() });
     return;
   }
+  // One credit per code + car: free when the quick search of it was already paid for.
+  if (job.userId && !job.unlimited && !job.prepaid) await addCredits(store, job.userId, -1, `extended:${data.code?.full ?? 'text'}`, now());
+  if (job.passKey) await store.set(job.passKey, { exp: now() + 86_400_000 });
   const item = historyItem(id, now(), job.input, data);
   if (job.userId) await addHistory(store, job.userId, item);
   await store.set(key, { ...job, status: 'done', finishedAt: now(), result: data, item: { id: item.id, at: item.at, req: item.req } });

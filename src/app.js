@@ -7,6 +7,8 @@ import { loginEmail } from './email.js';
 import checkCode, { cachedAnswer, checkInput } from './research/diagnose.mjs';
 import { JOB_STALE_MS, addHistory, historyItem, jobKey, kbOn } from './research/jobs.mjs';
 import { createRecallTranslator } from './research/translate.mjs';
+import { addCredits, balance, grantSignupCredits } from './credits.js';
+import { findPack, publicPacks } from './packs.js';
 
 const DAY_MS = 86_400_000;
 const LOGIN_TTL_MS = 15 * 60_000;
@@ -48,7 +50,9 @@ async function readJson(req) {
 
 /**
  * deps: { store, env, ip, now(), diagnose(input), scan(image), sendEmail?(msg) }
- * env keys used: FREE_DAILY, IP_DAILY, PRO_EMAILS, SITE_URL, DEV_LOGIN_LINKS, LIVE, ANTHROPIC_API_KEY, ANTHROPIC_MODEL
+ * deps.createCheckout?({ user, pack, origin }) -> { url }   (payment provider, see src/payments.js)
+ * env keys used: FREE_CREDITS, PRO_EMAILS (testers: no credits needed), SITE_URL, DEV_LOGIN_LINKS, LIVE,
+ *   ANTHROPIC_API_KEY, ANTHROPIC_MODEL, DAILY_SPEND_LIMIT_USD, USD_RATE, PAYMENT_FEE
  */
 export async function handle(req, deps) {
   const { store, env = {}, ip = 'unknown' } = deps;
@@ -56,8 +60,9 @@ export async function handle(req, deps) {
   const url = new URL(req.url);
   const path = url.pathname.replace(/\/+$/, '');
   const method = req.method;
-  const freeDaily = Number(env.FREE_DAILY ?? 3);
-  const ipDaily = Number(env.IP_DAILY ?? 15);
+  const freeCredits = Number(env.FREE_CREDITS ?? 3);
+  const spendLimitUsd = Number(env.DAILY_SPEND_LIMIT_USD ?? 20);
+  const priceOpts = { usdRate: Number(env.USD_RATE ?? 2.75), paymentFee: Number(env.PAYMENT_FEE ?? 0.035) };
   const proEmails = new Set(String(env.PRO_EMAILS ?? '').toLowerCase().split(',').map((s) => s.trim()).filter(Boolean));
   const loginEnabled = Boolean(deps.sendEmail) || env.DEV_LOGIN_LINKS === '1';
   const setCookies = [];
@@ -71,7 +76,8 @@ export async function handle(req, deps) {
       user = await store.get(`user:${sess.userId}`);
     }
   }
-  const isPro = Boolean(user && (user.pro || proEmails.has(user.email)));
+  // Testers in PRO_EMAILS search without spending credits.
+  const unlimited = Boolean(user && (user.pro || proEmails.has(user.email)));
   let deviceId = cookies.ecl_dev;
   if (!deviceId || deviceId.length > 64) {
     deviceId = token().slice(0, 24);
@@ -80,11 +86,21 @@ export async function handle(req, deps) {
   const who = user ? `u:${user.id}` : `d:${deviceId}`;
   const day = dayKey(now);
 
-  async function quota() {
-    if (isPro) return { limit: null, remaining: null, pro: true };
-    const used = (await store.get(`quota:${day}:${who}`))?.n ?? 0;
-    return { limit: freeDaily, remaining: Math.max(0, freeDaily - used), pro: false };
+  // ---- credits ----------------------------------------------------------------------------
+  // 1 credit = 1 answer. Only signed-in users have credits (new accounts get FREE_CREDITS once).
+  async function wallet() {
+    return { balance: user ? await balance(store, user.id) : 0, unlimited, signedIn: Boolean(user) };
   }
+  const canSpend = async () => Boolean(user) && (unlimited || (await balance(store, user.id)) >= 1);
+  const spend = async (reason) => {
+    if (user && !unlimited) await addCredits(store, user.id, -1, reason, now);
+    return wallet();
+  };
+  const noCredits = async () => out({ error: 'no_credits', need_login: !user, credits: await wallet() }, 402);
+  // Our daily AI spend in micro-USD; past DAILY_SPEND_LIMIT_USD paid searches pause until tomorrow.
+  const spendKey = `spend:${day}`;
+  const recordSpend = async (usd) => { if (usd > 0) await store.add(spendKey, Math.round(usd * 1e6)); };
+  const overSpendLimit = async () => ((await store.get(spendKey))?.n ?? 0) >= spendLimitUsd * 1e6;
 
   const out = (data, status = 200, extra = {}) => {
     const res = json(data, status, extra);
@@ -96,9 +112,10 @@ export async function handle(req, deps) {
     // ---- account ----------------------------------------------------------------------
     if (path === '/api/me' && method === 'GET') {
       return out({
-        user: user ? { email: user.email, pro: isPro } : null,
-        quota: await quota(),
-        features: { login: loginEnabled, live: env.LIVE === '1' },
+        user: user ? { email: user.email } : null,
+        credits: await wallet(),
+        packs: publicPacks(priceOpts),
+        features: { login: loginEnabled, live: env.LIVE === '1', payments: Boolean(deps.createCheckout), freeCredits },
       });
     }
 
@@ -132,8 +149,15 @@ export async function handle(req, deps) {
       }
       await store.del(key); // single use
       const userId = sha(login.email).slice(0, 32);
-      const existing = await store.get(`user:${userId}`);
-      await store.set(`user:${userId}`, existing ?? { id: userId, email: login.email, createdAt: now, lang: login.lang });
+      let account = await store.get(`user:${userId}`);
+      if (!account) {
+        account = { id: userId, email: login.email, createdAt: now, lang: login.lang };
+        await store.set(`user:${userId}`, account);
+      }
+      // Sign-up gift, once per account. At most 2 gifts per IP per day, so new emails can't farm it.
+      if (!account.signupCredits && (await store.incr(`rl:gift:${day}:ip:${ip}`)) <= 2) {
+        await grantSignupCredits(store, account, freeCredits, now);
+      }
       const sessionToken = token();
       await store.set(`session:${sha(sessionToken)}`, { userId, exp: now + SESSION_TTL_MS });
       const res = new Response(null, { status: 302, headers: { location: '/?login=ok' } });
@@ -156,12 +180,7 @@ export async function handle(req, deps) {
         if (err instanceof InputError) return out({ error: 'bad_input', message: err.message }, 400);
         throw err;
       }
-      const q = await quota();
-      if (!isPro) {
-        if (q.remaining <= 0) return out({ error: 'quota_exceeded', quota: q }, 402);
-        const ipUsed = (await store.get(`quota:${day}:ip:${ip}`))?.n ?? 0;
-        if (ipUsed >= ipDaily) return out({ error: 'quota_exceeded', quota: { ...q, remaining: 0 } }, 402);
-      }
+      if (!(await canSpend())) return noCredits();
 
       let result;
       try {
@@ -171,10 +190,7 @@ export async function handle(req, deps) {
         return out({ error: 'diagnosis_failed' }, 502);
       }
 
-      if (!isPro) {
-        await store.incr(`quota:${day}:${who}`);
-        await store.incr(`quota:${day}:ip:${ip}`);
-      }
+      const credits = await spend('diagnose');
       const diagnosis = input.code ? { ...result.diagnosis, code_info: input.code } : result.diagnosis;
       const item = {
         id: token().slice(0, 12),
@@ -187,38 +203,47 @@ export async function handle(req, deps) {
         list.unshift(item);
         await store.set(`history:${user.id}`, list.slice(0, HISTORY_MAX));
       }
-      return out({ ...diagnosis, item: { id: item.id, at: item.at, req: item.req }, meta: { model: result.model, live: env.LIVE === '1', quota: await quota() } });
+      return out({ ...diagnosis, item: { id: item.id, at: item.at, req: item.req }, meta: { model: result.model, live: env.LIVE === '1', credits } });
     }
 
     // Code check with live web research (src/research/). Steps:
     //   basic    free, instant: exact code breakdown + NHTSA recalls.
-    //   quick    one fast search (synchronous). Uses a daily check only if it found the definition.
+    //   quick    one fast search (synchronous). Costs 1 credit when it returns an answer.
     //   research extended two-stage search as a background job -> 202 { jobId }, then poll
-    //            GET /api/check/<jobId>. Uses a daily check only when it succeeds.
-    // Never charged for a knowledge-base hit or an error.
+    //            GET /api/check/<jobId>. Free if the user already paid for this code + car in the
+    //            last 24 h (the quick search found no definition); otherwise 1 credit on success.
+    // Never charged for a knowledge-base hit or an error. Every search has a hard cost cap
+    // (src/research/cost.mjs), and our total AI spend per day is capped (DAILY_SPEND_LIMIT_USD).
     if (path === '/api/check' && method === 'POST') {
-      const canSpend = async () => {
-        if (isPro) return true;
-        if ((await quota()).remaining <= 0) return false;
-        return ((await store.get(`quota:${day}:ip:${ip}`))?.n ?? 0) < ipDaily;
-      };
       const kb = kbOn(store);
       const apiKey = env.ANTHROPIC_API_KEY?.trim() || undefined;
       const copy = req.clone(); // checkCode reads the body; the copy is for the history entry / job
       const body = await copy.json().catch(() => ({}));
+      const step = ['quick', 'research'].includes(body.step) ? body.step : 'basic';
+      const localizeNhtsa = createRecallTranslator({ apiKey, store });
+      if (step === 'basic') return checkCode(req, { apiKey, localizeNhtsa }).then(async (r) => out(await r.json(), r.status));
 
-      if (body.step === 'research') {
-        const input = checkInput(body);
-        if (input.error) return out({ error: input.error }, 400);
-        if (!apiKey) return out({ error: 'not_configured' }, 500);
-        const hit = await cachedAnswer(body, kb);
-        if (hit) return out({ step: 'research', code: input.dtc, diagnosis: hit.diagnosis, cached: true, researched_at: hit.at, quota: await quota() });
-        if (!(await canSpend())) return out({ error: 'no_credits', quota: await quota() }, 402);
+      const input = checkInput(body);
+      if (input.error) return out({ error: input.error }, 400);
+      if (!apiKey) return out({ error: 'not_configured' }, 500);
+      const hit = await cachedAnswer(body, kb);
+      if (hit) return out({ step, code: input.dtc, diagnosis: hit.diagnosis, cached: true, researched_at: hit.at, credits: await wallet() });
+
+      // One credit covers a code: quick search, then the extended search of the same code + car.
+      const passKey = user ? `pass:${user.id}:${sha(JSON.stringify([input.dtc?.full, input.car, input.lang, input.text]))}` : null;
+      const pass = passKey ? await store.get(passKey) : null;
+      const prepaid = Boolean(pass && pass.exp > now);
+      if (!prepaid && !(await canSpend())) return noCredits();
+      if (await overSpendLimit()) return out({ error: 'busy' }, 503);
+      const failKey = `rl:fail:${day}:${user.id}`;
+      if (((await store.get(failKey))?.n ?? 0) >= 5) return out({ error: 'rate_limited' }, 429);
+
+      if (step === 'research') {
         if (!deps.startJob) return out({ error: 'not_configured' }, 500);
         const jobId = token().slice(0, 24);
         const fields = ['code', 'make', 'model', 'year', 'engine', 'text', 'lang'];
         const jobInput = Object.fromEntries(fields.filter((k) => body[k] != null).map((k) => [k, String(body[k]).slice(0, 2000)]));
-        await store.set(jobKey(jobId), { status: 'queued', input: jobInput, who, ip, day, pro: isPro, userId: user?.id ?? null, createdAt: now });
+        await store.set(jobKey(jobId), { status: 'queued', input: jobInput, who, userId: user.id, unlimited, prepaid, passKey, createdAt: now });
         try {
           await deps.startJob(jobId, url.origin);
         } catch (err) {
@@ -226,24 +251,25 @@ export async function handle(req, deps) {
           await store.set(jobKey(jobId), { status: 'failed', error: 'research_failed', who });
           return out({ error: 'research_failed' }, 502);
         }
-        return out({ step: 'research', jobId, status: 'queued' }, 202);
+        return out({ step, jobId, status: 'queued', prepaid }, 202);
       }
 
-      const credits = { available: canSpend, async charge() {
-        if (!isPro) {
-          await store.incr(`quota:${day}:${who}`);
-          await store.incr(`quota:${day}:ip:${ip}`);
-        }
-        return quota();
-      } };
-      const res = await checkCode(req, { apiKey, model: env.ANTHROPIC_MODEL, credits, kb, localizeNhtsa: createRecallTranslator({ apiKey, store }) });
+      // quick
+      const credits = { available: async () => true, charge: async () => undefined }; // charged below, after success
+      const res = await checkCode(req, { apiKey, model: env.ANTHROPIC_MODEL, credits, kb, localizeNhtsa });
       const data = await res.json();
-      if (res.status === 402) return out({ ...data, quota: await quota() }, 402);
-      if (res.status !== 200 || data.step === 'basic') return out(data, res.status);
-
+      await recordSpend(data.usage?.cost_usd ?? 0);
+      if (res.status !== 200) {
+        if (res.status >= 500 || res.status === 429) await store.incr(failKey);
+        return out(data, res.status);
+      }
+      if (!prepaid) {
+        await spend(`quick:${data.code?.full ?? 'text'}`);
+        await store.set(passKey, { exp: now + DAY_MS });
+      }
       const item = historyItem(token().slice(0, 12), now, body, data);
-      if (user && data.diagnosis?.definition?.found) await addHistory(store, user.id, item, HISTORY_MAX);
-      return out({ ...data, quota: data.quota ?? (await quota()), item: { id: item.id, at: item.at, req: item.req } });
+      if (data.diagnosis?.definition?.found) await addHistory(store, user.id, item, HISTORY_MAX);
+      return out({ ...data, charged: !prepaid, extend_included: Boolean(data.can_extend), credits: await wallet(), item: { id: item.id, at: item.at, req: item.req } });
     }
 
     const jobMatch = path.match(/^\/api\/check\/([A-Za-z0-9_-]{8,64})$/);
@@ -253,13 +279,15 @@ export async function handle(req, deps) {
       let { status } = job;
       const stale = (status === 'queued' && now - job.createdAt > 5 * 60_000) || (status === 'running' && now - job.startedAt > JOB_STALE_MS);
       if (stale) status = 'failed';
-      if (status === 'done') return out({ status, ...job.result, item: job.item, quota: await quota() });
-      if (status === 'failed') return out({ status, error: job.error ?? 'research_failed', quota: await quota() });
+      if (status === 'done') return out({ status, ...job.result, item: job.item, credits: await wallet() });
+      if (status === 'failed') return out({ status, error: job.error ?? 'research_failed', credits: await wallet() });
       return out({ status });
     }
 
+    // Read trouble codes from a photo. Free for signed-in users, 20 per day.
     if (path === '/api/scan-code' && method === 'POST') {
-      if (!isPro) return out({ error: 'pro_required' }, 402);
+      if (!user) return out({ error: 'login_required' }, 401);
+      if ((await store.incr(`rl:scan:${day}:${user.id}`)) > 20) return out({ error: 'too_many' }, 429);
       let image;
       try {
         image = parseImage(await readJson(req));
@@ -273,6 +301,24 @@ export async function handle(req, deps) {
       } catch (err) {
         console.error('scan failed', err);
         return out({ error: 'scan_failed' }, 502);
+      }
+    }
+
+    // Buy a credit pack: the payment provider returns a checkout page to send the user to.
+    // Credits are added only by the provider's confirmed payment (grantPurchase in src/credits.js).
+    if (path === '/api/credits/checkout' && method === 'POST') {
+      if (!user) return out({ error: 'login_required' }, 401);
+      const { packId } = await readJson(req);
+      const pack = publicPacks(priceOpts).find((p) => p.id === packId);
+      if (!pack || !findPack(packId)) return out({ error: 'bad_pack' }, 400);
+      if (!pack.buyable) return out({ error: 'pack_unavailable' }, 409); // no price yet, or below the no-loss floor
+      if (!deps.createCheckout) return out({ error: 'payments_unavailable' }, 503);
+      try {
+        const { url: checkoutUrl } = await deps.createCheckout({ user, pack, origin: url.origin });
+        return out({ url: checkoutUrl });
+      } catch (err) {
+        console.error('checkout failed', err);
+        return out({ error: 'checkout_failed' }, 502);
       }
     }
 

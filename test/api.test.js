@@ -41,18 +41,38 @@ function setup(env = {}, extra = {}) {
 
 const diag = (call, extra) => call('/api/diagnose', { method: 'POST', body: { code: 'P0401', car: { make: 'Land Rover' }, ...extra }, ...extra?._opts });
 
-test('anonymous visitor gets 3 free checks per day, then 402, then resets next day', async () => {
-  const { call, tick } = setup();
+async function login(call, sent, email = 'user@example.com', opts = {}) {
+  await call('/api/auth/start', { method: 'POST', body: { email }, ...opts });
+  await call(sent.at(-1).text.match(/https:\/\/\S+/)[0].replace(BASE, ''), opts);
+}
+const balanceOf = async (call) => (await call('/api/me')).body.credits.balance;
+
+test('anonymous visitors have no credits: paid checks ask them to sign in', async () => {
+  const { call } = setup();
   const me = await call('/api/me');
-  assert.equal(me.body.quota.remaining, 3);
+  assert.deepEqual(me.body.credits, { balance: 0, unlimited: false, signedIn: false });
+  const r = await diag(call);
+  assert.equal(r.status, 402);
+  assert.equal(r.body.error, 'no_credits');
+  assert.equal(r.body.need_login, true);
+});
+
+test('new accounts get 3 credits once; each answer uses one; at 0 -> 402', async () => {
+  const { call, sent, jar } = setup();
+  await login(call, sent);
+  assert.equal(await balanceOf(call), 3);
   for (let i = 2; i >= 0; i--) {
     const r = await diag(call);
     assert.equal(r.status, 200);
-    assert.equal(r.body.meta.quota.remaining, i);
+    assert.equal(r.body.meta.credits.balance, i);
   }
-  assert.equal((await diag(call)).status, 402);
-  tick(24 * 3600_000);
-  assert.equal((await diag(call)).status, 200);
+  const r = await diag(call);
+  assert.equal(r.status, 402);
+  assert.equal(r.body.need_login, false);
+  // signing in again does not give the gift twice
+  delete jar.ecl_sess;
+  await login(call, sent);
+  assert.equal(await balanceOf(call), 0);
 });
 
 test('device cookie is set once and reused', async () => {
@@ -64,27 +84,21 @@ test('device cookie is set once and reused', async () => {
   assert.equal(jar.ecl_dev, first);
 });
 
-test('per-IP cap stops cookie clearing abuse', async () => {
-  const { call, jar } = setup({ IP_DAILY: '4' });
-  for (let i = 0; i < 4; i++) {
-    delete jar.ecl_dev; // new "device" every time
-    assert.equal((await diag(call)).status, 200);
+test('sign-up gift: at most 2 new accounts per IP per day', async () => {
+  const { call, sent, jar } = setup();
+  for (const [i, email] of ['a1@x.co', 'a2@x.co', 'a3@x.co'].entries()) {
+    delete jar.ecl_sess;
+    await login(call, sent, email);
+    assert.equal(await balanceOf(call), i < 2 ? 3 : 0, email);
   }
-  delete jar.ecl_dev;
-  assert.equal((await diag(call)).status, 402);
 });
 
-test('bad input is rejected without using a free check', async () => {
-  const { call } = setup();
-  const r = await call('/api/diagnose', { method: 'POST', body: { code: 'hello' } });
-  assert.equal(r.status, 400);
-  assert.equal((await call('/api/me')).body.quota.remaining, 3);
-});
-
-test('a failed AI call does not use a free check', async () => {
-  const { call } = setup({}, { diagnose: async () => { throw new Error('down'); } });
+test('bad input and failed AI calls do not use a credit', async () => {
+  const { call, sent } = setup({}, { diagnose: async () => { throw new Error('down'); } });
+  await login(call, sent);
+  assert.equal((await call('/api/diagnose', { method: 'POST', body: { code: 'hello' } })).status, 400);
   assert.equal((await diag(call)).status, 502);
-  assert.equal((await call('/api/me')).body.quota.remaining, 3);
+  assert.equal(await balanceOf(call), 3);
 });
 
 test('magic-link sign-in: email sent, link works once, session cookie, history saved', async () => {
@@ -139,17 +153,29 @@ test('bad email and rate limit on sign-in', async () => {
   assert.equal((await call('/api/auth/start', { method: 'POST', body: { email: 'x@y.co' } })).status, 429);
 });
 
-test('code scanning is Pro only; PRO_EMAILS unlocks it and removes the limit', async () => {
+test('code scanning needs sign-in and is free; PRO_EMAILS testers need no credits', async () => {
   const { call, sent } = setup({ PRO_EMAILS: 'valeri@example.com' });
   const img = { image: { media_type: 'image/png', data: 'AAAA' } };
-  assert.equal((await call('/api/scan-code', { method: 'POST', body: img })).status, 402);
-  await call('/api/auth/start', { method: 'POST', body: { email: 'valeri@example.com' } });
-  await call(sent[0].text.match(/https:\/\/\S+/)[0].replace(BASE, ''));
+  assert.equal((await call('/api/scan-code', { method: 'POST', body: img })).status, 401);
+  await login(call, sent, 'valeri@example.com');
   const s = await call('/api/scan-code', { method: 'POST', body: img });
   assert.equal(s.status, 200);
   assert.equal(s.body.codes[0].code, 'P0401');
   for (let i = 0; i < 6; i++) assert.equal((await diag(call)).status, 200);
-  assert.equal((await call('/api/me')).body.quota.pro, true);
+  const me = await call('/api/me');
+  assert.equal(me.body.credits.unlimited, true);
+  assert.equal(me.body.credits.balance, 3);
+});
+
+test('packs: no price -> not buyable; below the no-loss floor -> refused; no provider -> 503', async () => {
+  const { call, sent } = setup();
+  const me = await call('/api/me');
+  assert.ok(me.body.packs.length >= 3);
+  for (const p of me.body.packs) assert.ok(p.min_price > 0);
+  assert.equal((await call('/api/credits/checkout', { method: 'POST', body: { packId: 'small' } })).status, 401);
+  await login(call, sent);
+  assert.equal((await call('/api/credits/checkout', { method: 'POST', body: { packId: 'nope' } })).status, 400);
+  assert.equal((await call('/api/credits/checkout', { method: 'POST', body: { packId: 'small' } })).body.error, 'pack_unavailable');
 });
 
 test('waitlist stores each email once', async () => {

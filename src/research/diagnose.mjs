@@ -16,6 +16,7 @@
 import { parseDtc } from "./lib/dtc.mjs";
 import { officialDomains, tierOf, isOfficial } from "./lib/sources.mjs";
 import { nhtsaLookup } from "./lib/nhtsa.mjs";
+import { costOf, QUICK_CAP_USD, EXTENDED_CAP_USD } from "./cost.mjs";
 
 const DEFAULT_MODEL = "claude-sonnet-5-5";
 const API = "https://api.anthropic.com/v1/messages";
@@ -126,7 +127,9 @@ function userPrompt({ dtc, car, text, nhtsa, prior }) {
   return lines.join("\n");
 }
 
-async function callClaude({ system, user, webTool, apiKey, model, signal }) {
+// budgetUsd: when the spend of this call reaches it, the model is told to submit now; at 1.5x
+// the call is stopped (error "budget_exceeded"), so no search can run away with cost.
+async function callClaude({ system, user, webTool, apiKey, model, signal, budgetUsd = Infinity }) {
   const headers = {
     "x-api-key": apiKey,
     "anthropic-version": "2023-06-01",
@@ -138,8 +141,8 @@ async function callClaude({ system, user, webTool, apiKey, model, signal }) {
   let forced = false;
 
   for (let turn = 0; turn < 4; turn++) {
+    // Note: Sonnet 5.5 rejects a forced tool_choice, so "forced" is an instruction, not tool_choice.
     const body = { model, max_tokens: 4000, system, messages, tools: [webTool, SUBMIT_TOOL] };
-    if (forced) body.tool_choice = { type: "tool", name: SUBMIT_TOOL.name };
     const res = await fetch(API, { method: "POST", headers, body: JSON.stringify(body), signal });
     if (!res.ok) {
       const err = new Error(`anthropic_${res.status}`);
@@ -157,11 +160,18 @@ async function callClaude({ system, user, webTool, apiKey, model, signal }) {
         for (const r of block.content) if (r.type === "web_search_result" && r.url) seen.set(r.url, r.title ?? "");
       if (block.type === "tool_use" && block.name === SUBMIT_TOOL.name) submitted = block.input;
     }
+    usage.cost_usd = costOf(usage, model);
     if (submitted) return { result: submitted, seen, usage };
+    if (usage.cost_usd >= budgetUsd * 1.5) {
+      const err = new Error("budget_exceeded");
+      err.usage = usage;
+      throw err;
+    }
 
     messages.push({ role: "assistant", content: msg.content });
-    if (msg.stop_reason === "pause_turn") continue; // long search turn: resume as is
-    messages.push({ role: "user", content: "Call submit_diagnosis now with what you have." });
+    const overBudget = usage.cost_usd >= budgetUsd;
+    if (msg.stop_reason === "pause_turn" && !overBudget && !forced) continue; // long search turn: resume as is
+    messages.push({ role: "user", content: "Stop searching. Call submit_diagnosis now with what you have." });
     forced = true;
   }
   throw new Error("no_submission");
@@ -191,8 +201,8 @@ function groundResult(result, seen, make) {
 }
 
 async function research({ dtc, car, text, lang, nhtsa, apiKey, model }) {
-  const totals = { input_tokens: 0, output_tokens: 0, web_searches: 0, stages: 0 };
-  const add = (u) => { for (const k of ["input_tokens", "output_tokens", "web_searches"]) totals[k] += u[k]; totals.stages++; };
+  const totals = { input_tokens: 0, output_tokens: 0, web_searches: 0, stages: 0, cost_usd: 0 };
+  const add = (u) => { for (const k of ["input_tokens", "output_tokens", "web_searches", "cost_usd"]) totals[k] += u[k] ?? 0; totals.stages++; };
   const seen = new Map();
   let prior = null;
 
@@ -202,7 +212,7 @@ async function research({ dtc, car, text, lang, nhtsa, apiKey, model }) {
       system: systemPrompt(lang, "official"),
       user: userPrompt({ dtc, car, text, nhtsa }),
       webTool: { type: "web_search_20250305", name: "web_search", max_uses: 2, allowed_domains: officialDomains(car.make) },
-      apiKey, model,
+      apiKey, model, budgetUsd: (EXTENDED_CAP_USD * 0.4) / 1.5, // hard stop at 40% of the cap
     });
     add(a.usage);
     for (const [u, t] of a.seen) seen.set(u, t);
@@ -211,16 +221,24 @@ async function research({ dtc, car, text, lang, nhtsa, apiKey, model }) {
       return { result: grounded, usage: totals };
     prior = { definition: grounded.definition, bulletins: grounded.bulletins };
   } catch (e) {
+    if (e.usage) add(e.usage); // stopped by its cost cap: count what it spent
     if (e.status === 401 || e.status === 429) throw e; // key or rate problem: stage B would fail too
   }
 
   // Stage B: open web, to fill what official sources did not cover.
-  const b = await callClaude({
+  let b;
+  try {
+    b = await callClaude({
     system: systemPrompt(lang, "open"),
     user: userPrompt({ dtc, car, text, nhtsa, prior }),
     webTool: { type: "web_search_20250305", name: "web_search", max_uses: 3 },
-    apiKey, model,
-  });
+    apiKey, model, budgetUsd: Math.max(0.04, (EXTENDED_CAP_USD - totals.cost_usd) / 1.5), // hard stop at what is left of the cap
+    });
+  } catch (e) {
+    if (e.usage) add(e.usage);
+    e.usage = totals;
+    throw e;
+  }
   add(b.usage);
   for (const [u, t] of b.seen) seen.set(u, t);
   const grounded = groundResult(b.result, seen, car.make);
@@ -243,7 +261,7 @@ async function quickResearch({ dtc, car, text, lang, nhtsa, apiKey, model }) {
     system: systemPrompt(lang, "quick"),
     user: userPrompt({ dtc, car, text, nhtsa }),
     webTool: { type: "web_search_20250305", name: "web_search", max_uses: 3 },
-    apiKey, model, signal: AbortSignal.timeout(QUICK_BUDGET_MS),
+    apiKey, model, signal: AbortSignal.timeout(QUICK_BUDGET_MS), budgetUsd: QUICK_CAP_USD / 1.5,
   });
   return { result: groundResult(q.result, q.seen, car.make), usage: { ...q.usage, stages: 1 } };
 }
@@ -311,7 +329,8 @@ export default async function handler(req, opts = {}) {
     const status = e.status === 429 ? 429 : 502;
     console.error(`${step} failed`, e.name === "TimeoutError" ? "time budget" : e.message, e.detail ?? "");
     // A failed or timed-out quick search can still be retried as the extended search.
-    return json(status, { error: e.status === 429 ? "rate_limited" : "research_failed", detail: e.message, ...(step === "quick" ? { can_extend: true } : {}) });
+    // usage (when known) lets the router count what a failed search still cost us.
+    return json(status, { error: e.status === 429 ? "rate_limited" : "research_failed", detail: e.message, ...(e.usage ? { usage: e.usage } : {}), ...(step === "quick" ? { can_extend: true } : {}) });
   }
   const { result, usage } = out;
   const found = result.definition.found;

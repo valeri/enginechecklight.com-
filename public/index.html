@@ -52,6 +52,25 @@ button, input, textarea { font: inherit; color: inherit; }
 .seg { display: inline-flex; background: var(--sunken); border-radius: 999px; padding: 3px; }
 .seg button { border: 0; background: none; padding: 4px 10px; border-radius: 999px; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--muted); }
 .seg button[aria-pressed="true"] { background: var(--surface); color: var(--fg); }
+.cr { display: inline-flex; align-items: center; gap: 5px; height: 34px; padding: 0 12px 0 10px; border-radius: 999px; border: 2px solid var(--accent); background: var(--accent-soft); color: var(--fg); font-weight: 800; font-size: 14px; cursor: pointer; white-space: nowrap; }
+.cr svg { color: var(--accent); }
+.cr .plus { display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font-size: 14px; line-height: 1; margin-left: 2px; }
+.cr.low { animation: crpulse 1.6s ease-in-out 3; }
+@keyframes crpulse { 50% { transform: scale(1.06); } }
+@media (prefers-reduced-motion: reduce) { .cr.low { animation: none; } }
+.credit-card { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; border: 2px solid var(--accent); background: var(--accent-soft); }
+.credit-card .primary { width: auto; padding: 12px 18px; }
+.cost-line { display: flex; justify-content: center; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+.packs { display: grid; gap: 12px; }
+.pack { position: relative; display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: center; text-align: left; border: 1px solid var(--line); background: var(--surface); border-radius: var(--r); padding: 16px; }
+.pack.pop { border: 2px solid var(--accent); padding: 15px; }
+.pack .n { font-size: 22px; font-weight: 800; }
+.pack .n small { font-size: 14px; font-weight: 600; color: var(--muted); margin-left: 4px; }
+.pack .per { grid-column: 1; font-size: 13px; color: var(--muted); }
+.pack .p { grid-row: 1; grid-column: 2; font-size: 20px; font-weight: 800; text-align: right; }
+.pack .primary { grid-column: 1 / -1; margin-top: 8px; padding: 13px; }
+.pack .primary:disabled { opacity: .55; cursor: default; }
+.pack .badge { position: absolute; top: -10px; left: 14px; font-size: 11px; font-weight: 800; letter-spacing: .04em; background: var(--accent); color: var(--accent-ink); border-radius: 999px; padding: 2px 10px; }
 .acct { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); display: grid; place-items: center; cursor: pointer; color: var(--muted); padding: 0; }
 .acct.on { border-color: var(--accent); color: var(--accent); font-weight: 700; font-size: 14px; }
 .back { border: 0; background: none; cursor: pointer; padding: 6px 0; color: var(--muted); font-weight: 600; display: inline-flex; align-items: center; gap: 4px; }
@@ -211,7 +230,7 @@ const T = {
     privacy: "Privacy", disclaimerFoot: "AI estimate, not a replacement for a mechanic.",
     installT: "Install EngineCheckLight", installS: "Add it to your home screen. It opens like an app, no app store needed.", installBtn: "Install the app", installLink: "Install app", close: "Close",
     iosSteps: ["Tap the Share button {share} at the bottom (or top) of Safari", "Scroll down and choose “Add to Home Screen”", "Tap “Add”. The icon appears on your home screen."], installed: "App installed. Find it on your home screen.",
-    errors: { quota: "You've used today's free checks.", failed: "The diagnosis didn't work this time. Your free check was not used. Try again.", scan_failed: "Couldn't read that photo. Try again.", network: "No connection. Check your internet and try again.", photoBad: "That photo could not be read. Try a JPEG or PNG." },
+    errors: { quota: "You've used today's free checks.", failed: "The diagnosis didn't work this time. No credit was used. Try again.", scan_failed: "Couldn't read that photo. Try again.", network: "No connection. Check your internet and try again.", photoBad: "That photo could not be read. Try a JPEG or PNG." },
     sys: { P: "Powertrain", C: "Chassis", B: "Body", U: "Network" }, generic: "generic", maker: "maker-specific", fault: "fault", ftbUnknown: "failure type",
     codeExplained: "Code explained", cxSystem: "System", cxKind: "Type", cxTitle: "Meaning", cxModule: "Module", cxComponent: "Component", cxLook: "Where to look", unsure: "Not fully sure",
     sounds: { knock: "Knock", squeal: "Squeal", grind: "Grind", hiss: "Hiss", rattle: "Rattle", click: "Click", whine: "Whine", clunk: "Clunk", hum: "Hum" },
@@ -245,7 +264,7 @@ const T = {
     privacy: "კონფიდენციალურობა", disclaimerFoot: "AI-ის შეფასება, ხელოსანს არ ცვლის.",
     installT: "დააყენე EngineCheckLight", installS: "დაამატე ტელეფონის მთავარ ეკრანზე. გაიხსნება როგორც აპი, მაღაზიიდან გადმოწერა არ სჭირდება.", installBtn: "აპის დაყენება", installLink: "აპად დაყენება", close: "დახურვა",
     iosSteps: ["დააჭირე Share ღილაკს {share} Safari-ის ქვემოთ (ან ზემოთ)", "ჩამოსქროლე და აირჩიე „Add to Home Screen“ (მთავარ ეკრანზე დამატება)", "დააჭირე „Add“ (დამატება). აიკონი გამოჩნდება მთავარ ეკრანზე."], installed: "აპი დაყენდა. იპოვი მთავარ ეკრანზე.",
-    errors: { quota: "დღევანდელი უფასო შემოწმებები გამოიყენე.", failed: "დიაგნოსტიკა ამჯერად ვერ მოხერხდა. უფასო შემოწმება არ დაგეხარჯა. სცადე თავიდან.", scan_failed: "ფოტო ვერ წავიკითხე. სცადე თავიდან.", network: "კავშირი არ არის. შეამოწმე ინტერნეტი და სცადე თავიდან.", photoBad: "ფოტო ვერ წავიკითხე. სცადე JPEG ან PNG." },
+    errors: { quota: "დღევანდელი უფასო შემოწმებები გამოიყენე.", failed: "დიაგნოსტიკა ამჯერად ვერ მოხერხდა. კრედიტი არ დაგეხარჯა. სცადე თავიდან.", scan_failed: "ფოტო ვერ წავიკითხე. სცადე თავიდან.", network: "კავშირი არ არის. შეამოწმე ინტერნეტი და სცადე თავიდან.", photoBad: "ფოტო ვერ წავიკითხე. სცადე JPEG ან PNG." },
     sys: { P: "ძრავი/ტრანსმისია", C: "შასი", B: "ძარა", U: "ქსელი" }, generic: "ზოგადი", maker: "მწარმოებლის", fault: "ხარვეზი", ftbUnknown: "ხარვეზის ტიპი",
     codeExplained: "კოდის გაშიფვრა", cxSystem: "სისტემა", cxKind: "ტიპი", cxTitle: "მნიშვნელობა", cxModule: "ბლოკი", cxComponent: "კომპონენტი", cxLook: "სად მოძებნო", unsure: "ზუსტად დარწმუნებული არ არის",
     sounds: { knock: "კაკუნი", squeal: "წრიპინი", grind: "ხეხვა", hiss: "შიშინი", rattle: "ჩხრიალი", click: "ტკაცუნი", whine: "ზუზუნი", clunk: "ბრახუნი", hum: "გუგუნი" },
@@ -255,27 +274,45 @@ const T = {
 
 // Live research (POST /api/check): strings for both languages.
 Object.assign(T.en, {
+  credits: "Credits", buyCredits: "Buy credits", creditsT: "Buy credits",
+  creditsS: "1 credit = 1 answer from a live search of official and expert sources. Reading the code and recalls is always free. Credits don't expire.",
+  perCredit: p => `${p} per credit`, popular: "Most popular", buy: "Buy", soon: "Coming soon", creditsWord: n => n === 1 ? "credit" : "credits",
+  payUnavailable: "Payments are being connected. Buying will open very soon.", checkoutFailed: "Couldn't open the payment page. Try again.",
+  giftT: n => `Sign in and get ${n} free credits`, giftS: "We'll email you a sign-in link, no password needed.",
+  costLine: n => `A search uses 1 credit · you have ${n}`, costUnlimited: "Tester account · searches are free",
+  lowCredits: n => n > 0 ? `You have ${n} credit left` : "You have no credits left", lowCreditsS: "Buy a pack to keep searching. The code breakdown stays free.",
+  extendIncluded: "Included in the credit you already used.", scanLogin: "Sign in to read codes from a photo. It's free.",
+  balanceLabel: "Balance",
   searching: "Quick search: official sources first…", searchingSub: "Usually 15–40 seconds.",
-  extendT: "The quick search found no confirmed answer", extendS: "The extended search checks official sources first (government, manufacturer, standards), then the wider web. It takes 1–3 minutes and uses one check only if it succeeds. The quick search was free.", extendBtn: "Start extended search",
+  extendT: "The quick search found no confirmed answer", extendS: "The extended search checks official sources first (government, manufacturer, standards), then the wider web. It takes 1–3 minutes.", extendBtn: "Start extended search",
   extending: "Extended search is running…", extendingSub: "Official sources first, then the wider web. Usually 1–3 minutes. Keep the app open; the answer also goes into Recent.",
   definition: "What the code means", defNotFound: "Definition not found in sources. No source we found states what this exact code means for your car, so we don't guess.",
   source: "Source", sources: "Sources", bulletins: "Bulletins and recalls found", recalls: "Official recalls (NHTSA, US market)", noRecalls: "No NHTSA recalls for this car.",
   complaints: n => `${n} owner complaint${n === 1 ? "" : "s"} at NHTSA mention this code`, confidence: "Confidence",
   conf_high: "High", conf_medium: "Medium", conf_low: "Low", cached: d => `From our knowledge base (researched ${d}).`,
-  cxSub: "Subsystem", reserved: "reserved", retry: "Try again", researchOut: "You've used today's free checks, so the live search didn't run. The code breakdown above is free.",
-  rerrors: { rate_limited: "Too many requests right now. Wait a minute and try again. Your check was not used.", research_failed: "The search didn't work this time. Your check was not used. Try again.", not_configured: "Live search isn't switched on yet." },
+  cxSub: "Subsystem", reserved: "reserved", retry: "Try again", researchOut: "The live search needs 1 credit. The code breakdown above is free.",
+  rerrors: { busy: "Too many searches right now. Try again in a little while. No credit was used.", rate_limited: "Too many requests right now. Wait a minute and try again. No credit was used.", research_failed: "The search didn't work this time. No credit was used. Try again.", not_configured: "Live search isn't switched on yet." },
   subs: { fuel_air_metering: "Fuel and air metering", injector_circuit: "Injector circuit", ignition_misfire: "Ignition / misfire", auxiliary_emission: "Auxiliary emission controls", speed_idle_control: "Speed and idle control", computer_output_circuit: "Computer output circuit", transmission: "Transmission", hybrid_propulsion: "Hybrid propulsion" },
 });
 Object.assign(T.ka, {
+  credits: "კრედიტები", buyCredits: "კრედიტების ყიდვა", creditsT: "კრედიტების ყიდვა",
+  creditsS: "1 კრედიტი = 1 პასუხი ცოცხალი ძიებით ოფიციალურ და პროფესიულ წყაროებში. კოდის გაშიფვრა და გამოძახებები ყოველთვის უფასოა. კრედიტებს ვადა არ გასდით.",
+  perCredit: p => `${p} ერთი კრედიტი`, popular: "ყველაზე პოპულარული", buy: "ყიდვა", soon: "მალე", creditsWord: () => "კრედიტი",
+  payUnavailable: "გადახდის სისტემა ერთდება. ყიდვა ძალიან მალე გაიხსნება.", checkoutFailed: "გადახდის გვერდი ვერ გაიხსნა. სცადე თავიდან.",
+  giftT: n => `შედი და მიიღე ${n} უფასო კრედიტი`, giftS: "ელფოსტაზე გამოგიგზავნით შესვლის ბმულს, პაროლი არ გჭირდება.",
+  costLine: n => `ერთი ძიება = 1 კრედიტი · გაქვს ${n}`, costUnlimited: "სატესტო ანგარიში · ძიება უფასოა",
+  lowCredits: n => n > 0 ? `დაგრჩა ${n} კრედიტი` : "კრედიტი აღარ დაგრჩა", lowCreditsS: "იყიდე პაკეტი და განაგრძე ძიება. კოდის გაშიფვრა უფასო რჩება.",
+  extendIncluded: "შედის უკვე დახარჯულ კრედიტში.", scanLogin: "ფოტოდან კოდის წასაკითხად შედი ანგარიშზე. უფასოა.",
+  balanceLabel: "ბალანსი",
   searching: "სწრაფი ძიება: ჯერ ოფიციალური წყაროები…", searchingSub: "ჩვეულებრივ 15–40 წამი.",
-  extendT: "სწრაფმა ძიებამ დადასტურებული პასუხი ვერ იპოვა", extendS: "გაფართოებული ძიება ჯერ ოფიციალურ წყაროებს ამოწმებს (სახელმწიფო, მწარმოებელი, სტანდარტები), მერე ფართო ინტერნეტს. სჭირდება 1–3 წუთი და ერთ შემოწმებას მხოლოდ წარმატების შემთხვევაში ხარჯავს. სწრაფი ძიება უფასო იყო.", extendBtn: "გაფართოებული ძიების დაწყება",
+  extendT: "სწრაფმა ძიებამ დადასტურებული პასუხი ვერ იპოვა", extendS: "გაფართოებული ძიება ჯერ ოფიციალურ წყაროებს ამოწმებს (სახელმწიფო, მწარმოებელი, სტანდარტები), მერე ფართო ინტერნეტს. სჭირდება 1–3 წუთი.", extendBtn: "გაფართოებული ძიების დაწყება",
   extending: "მიმდინარეობს გაფართოებული ძიება…", extendingSub: "ჯერ ოფიციალური წყაროები, მერე ფართო ინტერნეტი. ჩვეულებრივ 1–3 წუთი. აპი ღია დატოვე, პასუხი „ბოლო“ სიაშიც გამოჩნდება.",
   definition: "რას ნიშნავს კოდი", defNotFound: "განმარტება წყაროებში ვერ მოიძებნა. ვერცერთ ნაპოვნ წყაროში არ წერია, რას ნიშნავს ზუსტად ეს კოდი შენი მანქანისთვის, ამიტომ არ ვვარაუდობთ.",
   source: "წყარო", sources: "წყაროები", bulletins: "ნაპოვნი ბიულეტენები და გამოძახებები", recalls: "ოფიციალური გამოძახებები (NHTSA, აშშ-ის ბაზარი)", noRecalls: "ამ მანქანაზე NHTSA-ს გამოძახება არ არის.",
   complaints: n => `NHTSA-ში მფლობელთა ${n} საჩივარში ეს კოდია ნახსენები`, confidence: "სანდოობა",
   conf_high: "მაღალი", conf_medium: "საშუალო", conf_low: "დაბალი", cached: d => `ჩვენი ცოდნის ბაზიდან (მოძიებულია ${d}).`,
-  cxSub: "ქვესისტემა", reserved: "რეზერვირებული", retry: "თავიდან ცდა", researchOut: "დღევანდელი უფასო შემოწმებები გამოიყენე, ამიტომ ცოცხალი ძიება არ გაეშვა. ზემოთ კოდის გაშიფვრა უფასოა.",
-  rerrors: { rate_limited: "ახლა ძალიან ბევრი მოთხოვნაა. დაელოდე ერთ წუთს და სცადე თავიდან. შემოწმება არ დაგეხარჯა.", research_failed: "ძიება ამჯერად ვერ მოხერხდა. შემოწმება არ დაგეხარჯა. სცადე თავიდან.", not_configured: "ცოცხალი ძიება ჯერ ჩართული არ არის." },
+  cxSub: "ქვესისტემა", reserved: "რეზერვირებული", retry: "თავიდან ცდა", researchOut: "ცოცხალ ძიებას 1 კრედიტი სჭირდება. ზემოთ კოდის გაშიფვრა უფასოა.",
+  rerrors: { busy: "ახლა ძალიან ბევრი ძიებაა. სცადე ცოტა ხანში. კრედიტი არ დაგეხარჯა.", rate_limited: "ახლა ძალიან ბევრი მოთხოვნაა. დაელოდე ერთ წუთს და სცადე თავიდან. კრედიტი არ დაგეხარჯა.", research_failed: "ძიება ამჯერად ვერ მოხერხდა. კრედიტი არ დაგეხარჯა. სცადე თავიდან.", not_configured: "ცოცხალი ძიება ჯერ ჩართული არ არის." },
   subs: { fuel_air_metering: "საწვავისა და ჰაერის დოზირება", injector_circuit: "ინჟექტორის წრედი", ignition_misfire: "ანთება / გამოტოვება", auxiliary_emission: "გამონაბოლქვის დამხმარე კონტროლი", speed_idle_control: "ბრუნებისა და უქმი სვლის კონტროლი", computer_output_circuit: "კომპიუტერის გამომავალი წრედი", transmission: "გადაცემათა კოლოფი", hybrid_propulsion: "ჰიბრიდული ამძრავი" },
 });
 const TIER_LABEL = {
@@ -416,7 +453,7 @@ const blankForm = () => ({ make: "", model: "", year: "", engine: "", code: "", 
 const S = {
   lang: LS.get("ecl-lang", (navigator.language || "").startsWith("ka") ? "ka" : "en"),
   view: "home", error: "", notice: "", loading: true,
-  me: { user: null, quota: { limit: 3, remaining: 3, pro: false }, features: { login: false, live: false } },
+  me: { user: null, credits: { balance: 0, unlimited: false, signedIn: false }, packs: [], features: { login: false, live: false, payments: false, freeCredits: 3 } },
   form: { ...blankForm(), ...LS.get("ecl-car", {}) },
   history: LS.get("ecl-history", []), current: null, yearly: true,
   scan: { busy: false, codes: null, msg: "" },
@@ -426,9 +463,33 @@ const S = {
 };
 if (!T[S.lang]) S.lang = "en";
 const t = k => T[S.lang][k];
-const q = () => S.me.quota;
-const canCheck = () => q().pro || q().remaining > 0;
-const quotaLine = () => q().pro ? `<span class="plan-badge">${t("proOn")}</span>` : t("freeLeft")(q().remaining, q().limit);
+const cr = () => S.me.credits;
+const canCheck = () => cr().unlimited || cr().balance > 0;
+const setCredits = c => { if (c) S.me.credits = c; };
+const gift = () => S.me.features.freeCredits ?? 3;
+const creditLine = () => cr().unlimited ? t("costUnlimited") : S.me.user ? t("costLine")(cr().balance) : t("giftT")(gift());
+// Out of credits: signed in -> the packs screen; not signed in -> sign in first (with the free-credit gift).
+function goBuy() {
+  if (!S.me.user) { S.notice = t("giftT")(gift()); S.view = "account"; S.error = ""; render(); return; }
+  S.notice = ""; go("credits");
+}
+// Always-visible credits button in the top bar.
+const creditPill = () => {
+  if (cr().unlimited) return "";
+  if (!S.me.user) return S.me.features.login ? `<button class="cr" data-act="buy-start" aria-label="${esc(t("giftT")(gift()))}">${icons.bolt} ${gift()}<span class="plus">+</span></button>` : "";
+  const n = cr().balance;
+  return `<button class="cr${n <= 1 ? " low" : ""}" data-go="credits" aria-label="${t("credits")}: ${n}. ${t("buyCredits")}">${icons.bolt} ${n}<span class="plus">+</span></button>`;
+};
+// Big, obvious buy card, shown when credits are low or the visitor has none yet.
+function creditCard() {
+  if (cr().unlimited) return "";
+  if (!S.me.user) {
+    if (!S.me.features.login) return "";
+    return `<div class="panel credit-card"><div><b>${esc(t("giftT")(gift()))}</b><p class="note">${t("giftS")}</p></div><button class="primary" data-act="buy-start">${t("signIn")}</button></div>`;
+  }
+  if (cr().balance > 1) return "";
+  return `<div class="panel credit-card"><div><b>${esc(t("lowCredits")(cr().balance))}</b><p class="note">${t("lowCreditsS")}</p></div><button class="primary" data-go="credits">${t("buyCredits")}</button></div>`;
+}
 
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const sevColor = s => ({ low: "var(--ok)", medium: "var(--warn)", high: "var(--high)" }[s] || "var(--crit)");
@@ -444,6 +505,7 @@ const icons = {
   check: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg>',
   warn: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17v.5"/></svg>',
   share: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-label="Share"><path d="M12 3v12M8 7l4-4 4 4M6 11H5v10h14V11h-1"/></svg>',
+  bolt: '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>',
   stop: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M8 3h8l5 5v8l-5 5H8l-5-5V8z"/><path d="M9 9l6 6M15 9l-6 6"/></svg>',
 };
 
@@ -549,7 +611,7 @@ function topbar(showBack) {
     <div class="tools"><div class="seg" role="group" aria-label="Language">
       <button data-lang="en" aria-pressed="${S.lang === "en"}">EN</button>
       <button data-lang="ka" aria-pressed="${S.lang === "ka"}">ქა</button>
-    </div>${acct}</div></div>`;
+    </div>${creditPill()}${acct}</div></div>`;
 }
 const demoBanner = () => S.me.features.live ? "" : `<div class="banner demo">${t("demo")}</div>`;
 const footer = () => `<p class="foot">${t("disclaimerFoot")} · <a href="/privacy.html${S.lang === "ka" ? "#ka" : ""}">${t("privacy")}</a>${canInstall() ? ` · <button class="link" data-act="install" style="padding:0;font-size:inherit">${t("installLink")}</button>` : ""}</p>`;
@@ -566,7 +628,7 @@ function viewHome() {
       <span class="s">${esc([h.req.year, h.req.make, h.req.model, h.req.code].filter(Boolean).join(" · "))}</span>
     </button>`).join("")
     : `<div class="panel empty"><div class="lamp" style="width:48px;height:48px;margin:0 auto">${icons.engine}</div><h2>${t("emptyT")}</h2><p class="note">${t("emptyS")}</p></div>`}
-  <p class="note">${quotaLine()}${q().pro ? "" : ` · <button class="link" data-go="paywall" style="padding:0">${t("upgrade")}</button>`}</p>
+  ${creditCard()}
   </div>${footer()}
   <button class="fab" data-go="new">${icons.wrench} ${t("newd")}</button>`;
 }
@@ -591,8 +653,8 @@ function viewNew() {
       <div class="field"><input id="code" class="code-in" data-f="code" maxlength="10" autocomplete="off" autocapitalize="characters" placeholder="${t("codeHint")}" value="${esc(f.code)}" aria-label="${t("code")}"></div>
       <div id="anatomy">${anatomy(dc)}</div>
       <div class="scan-row">
-        ${q().pro ? `<label class="btn-o" for="scanIn">${icons.scan} ${t("scan")}</label><input id="scanIn" type="file" accept="image/*" hidden>`
-          : `<button class="btn-o" data-act="scanlocked">${icons.scan} ${t("scan")} <span class="pro">PRO</span></button>`}
+        ${S.me.user ? `<label class="btn-o" for="scanIn">${icons.scan} ${t("scan")}</label><input id="scanIn" type="file" accept="image/*" hidden>`
+          : `<button class="btn-o" data-act="scanlogin">${icons.scan} ${t("scan")}</button>`}
       </div>
       <p class="hint">${S.scan.busy ? t("scanning") : esc(S.scan.msg || t("scanHint"))}</p>
       ${S.scan.codes && S.scan.codes.length > 1 ? `<div class="found">${S.scan.codes.map(c => `<button class="chip" data-pick="${esc(c)}" aria-pressed="${decodeCode(S.form.code)?.c === c}">${esc(c)}</button>`).join("")}</div>` : ""}
@@ -616,7 +678,7 @@ function viewNew() {
 
     ${S.error ? `<p class="err" role="alert">${esc(S.error)}</p>` : ""}
     <button class="primary" data-act="diagnose">${t("diagnose")}</button>
-    <p class="note" style="text-align:center">${quotaLine()}</p>
+    <div class="cost-line"><span>${esc(creditLine())}</span>${cr().unlimited ? "" : S.me.user ? `<button class="btn-o" data-go="credits">${icons.bolt} ${t("buyCredits")}</button>` : S.me.features.login ? `<button class="btn-o" data-act="buy-start">${t("signIn")}</button>` : ""}</div>
   </div>`;
 }
 
@@ -677,12 +739,12 @@ function recallsBlock(n) {
 function viewResearch() {
   const cur = S.current, d = cur.d, b = cur.basic || {};
   let top = "", body = "";
-  const offer = cur.canExtend && cur.form ? `<div class="panel notfound"><b>${t("extendT")}</b><p class="note" style="margin:6px 0 12px">${t("extendS")}</p><button class="primary" data-act="extend">${t("extendBtn")}</button></div>` : "";
+  const offer = cur.canExtend && cur.form ? `<div class="panel notfound"><b>${t("extendT")}</b><p class="note" style="margin:6px 0 12px">${t("extendS")}${cur.extendIncluded ? ` <b>${t("extendIncluded")}</b>` : ""}</p><button class="primary" data-act="extend">${t("extendBtn")}</button></div>` : "";
   if (cur.status === "loading" || cur.status === "extending") {
     const ext = cur.status === "extending";
     top = `<div class="panel searching" role="status"><svg class="gauge" viewBox="0 0 120 66" aria-hidden="true"><path d="M10 60a50 50 0 0 1 100 0" fill="none" stroke="var(--line)" stroke-width="8" stroke-linecap="round"/><line class="needle" x1="60" y1="60" x2="60" y2="18" stroke="var(--fg)" stroke-width="4" stroke-linecap="round"/><circle cx="60" cy="60" r="6" fill="var(--fg)"/></svg><div><b>${t(ext ? "extending" : "searching")}</b><p class="note">${t(ext ? "extendingSub" : "searchingSub")}</p></div></div>`;
   } else if (cur.status === "out") {
-    top = `<div class="banner">${t("researchOut")} <button class="link" data-go="paywall" style="padding:0">${t("upgrade")}</button></div>`;
+    top = `<div class="panel credit-card"><div><b>${esc(S.me.user ? t("lowCredits")(cr().balance) : t("giftT")(gift()))}</b><p class="note">${t("researchOut")}</p></div><button class="primary" data-act="buy-start">${S.me.user ? t("buyCredits") : t("signIn")}</button></div>`;
   } else if (cur.status === "error") {
     top = `<p class="err" role="alert">${esc(cur.err)}</p>${offer || `<button class="btn-o" data-act="retry" style="align-self:flex-start">${t("retry")}</button>`}`;
   } else if (d) {
@@ -709,7 +771,7 @@ function viewResearch() {
   ${codeBreakdown(b.code)}
   ${body}
   ${recallsBlock(b.nhtsa)}
-  <p class="disc">${quotaLine()}<br>${t("disclaimerFoot")}</p>${footer()}`;
+  <p class="disc">${esc(creditLine())}<br>${t("disclaimerFoot")}</p>${footer()}`;
 }
 
 function viewResult() {
@@ -730,38 +792,37 @@ function viewResult() {
   ${rc && rc.low != null ? `<div class="h3">${t("cost")}</div><div class="cost"><small>${esc(rc.currency || "USD")}</small>${Math.round(rc.low)}–${Math.round(rc.high)}</div><p class="note">${esc(rc.note)}</p>` : ""}
   ${d.diy_checks?.length ? `<div class="h3">${t("checks")}</div><ul class="list">${d.diy_checks.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}
   ${d.questions?.length ? `<div class="h3">${t("questions")}</div><ul class="list">${d.questions.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}
-  <p class="disc">${quotaLine()}<br>${esc(d.disclaimer)}</p>${footer()}`;
+  <p class="disc">${esc(creditLine())}<br>${esc(d.disclaimer)}</p>${footer()}`;
 }
 
-function viewPaywall() {
-  const w = S.wait;
+function viewCredits() {
+  const fmt = (n, cur) => cur === "GEL" ? `${Number(n).toFixed(Number.isInteger(n) ? 0 : 2)} ₾` : `${Number(n).toFixed(2)} ${cur}`;
+  const packs = S.me.packs || [];
   return `${topbar(true)}<div class="pw">
-    <div class="lamp" style="width:56px;height:56px;margin:8px auto 0">${icons.engine}</div>
-    <h2>${t("pwTitle")}</h2><p>${t("pwSub")}</p>
-    ${S.notice ? `<div class="banner">${esc(S.notice)}</div>` : !q().pro && q().remaining === 0 ? `<div class="banner">${t("freeOut")}</div>` : ""}
-    <ul class="list pw-list"><li>${t("pw1")}</li><li>${t("pw2")}</li><li>${t("pw3")}</li><li>${t("pw4")}</li></ul>
-    <div class="stack">
-      <div class="soon">${t("planned")}</div>
-      <button class="plan" data-plan="y" aria-pressed="${S.yearly}"><span class="n">${t("yearly")}<span class="save">${t("save")}</span></span><span class="p">$49.99</span></button>
-      <button class="plan" data-plan="m" aria-pressed="${!S.yearly}"><span class="n">${t("monthly")}</span><span class="p">$7.99</span></button>
-      ${w.done ? `<div class="ok-box" role="status">${t("joined")}</div>` : `
-      <p class="note" style="text-align:left">${t("pwSoon")}</p>
-      <form class="stack" data-form="wait" novalidate style="text-align:left">
-        <div class="field"><label for="wemail">${t("email")}</label><input id="wemail" type="email" autocomplete="email" required value="${esc(w.email || S.me.user?.email || "")}"></div>
-        ${w.err ? `<p class="err" role="alert">${esc(w.err)}</p>` : ""}
-        <button class="primary" type="submit" ${w.busy ? "disabled" : ""}>${t("join")}</button>
-      </form>`}
-    </div></div>${footer()}`;
+    <h2>${t("creditsT")}</h2><p class="note" style="margin:8px 0 18px">${t("creditsS")}</p>
+    ${S.notice ? `<div class="banner" role="status">${esc(S.notice)}</div>` : ""}
+    ${S.me.user && !cr().unlimited ? `<p style="margin:0 0 16px">${t("balanceLabel")}: <b>${cr().balance}</b> ${t("creditsWord")(cr().balance)}</p>` : ""}
+    ${!S.me.user ? creditCard() : ""}
+    <div class="packs">${packs.map(p => `<div class="pack${p.popular ? " pop" : ""}">
+      ${p.popular ? `<span class="badge">${t("popular")}</span>` : ""}
+      <div class="n">${p.credits}<small>${t("creditsWord")(p.credits)}</small></div>
+      <div class="p">${p.price != null ? fmt(p.price, p.currency) : "—"}</div>
+      <div class="per">${p.price != null ? t("perCredit")(fmt(p.price / p.credits, p.currency)) : ""}</div>
+      <button class="primary" data-buy="${esc(p.id)}" ${p.buyable && !S.buying ? "" : "disabled"}>${p.buyable ? `${icons.bolt} ${t("buy")}` : t("soon")}</button>
+    </div>`).join("")}</div>
+  </div>${footer()}`;
 }
 
 function viewAccount() {
   const u = S.me.user, a = S.auth;
   if (u) return `${topbar(true)}<h2 style="font-size:24px;font-weight:800;margin-bottom:18px">${t("signInT")}</h2>
-    <div class="stack"><div class="panel"><b>${esc(t("signedAs")(u.email))}</b><p class="note" style="margin-top:4px">${quotaLine()}</p></div>
+    <div class="stack"><div class="panel"><b>${esc(t("signedAs")(u.email))}</b><p class="note" style="margin-top:4px">${esc(creditLine())}</p></div>
+    ${cr().unlimited ? "" : `<button class="primary" data-go="credits">${icons.bolt} ${t("buyCredits")}</button>`}
     <button class="btn-o" data-act="logout" style="align-self:flex-start">${t("signOut")}</button></div>${footer()}`;
   if (!S.me.features.login) return `${topbar(true)}<p>${t("loginOff")}</p>`;
   return `${topbar(true)}<h2 style="font-size:24px;font-weight:800;margin-bottom:10px">${t("signInT")}</h2>
   <p class="note" style="margin-bottom:18px">${t("signInS")}</p>
+  ${S.notice ? `<div class="banner" role="status">${esc(S.notice)}</div>` : ""}
   ${a.sent ? `<div class="stack"><div class="ok-box" role="status">${esc(t("checkMail")(a.email))}</div>
       ${a.devLink ? `<a class="btn-o" href="${esc(a.devLink)}" style="align-self:flex-start">${t("devLink")}</a>` : ""}
       <button class="link" data-act="authreset" style="align-self:flex-start;padding-left:0">${t("useOther")}</button></div>`
@@ -775,20 +836,20 @@ function viewAccount() {
 const app = document.getElementById("app");
 function render(keepScroll) {
   document.documentElement.lang = S.lang;
-  app.innerHTML = { home: viewHome, new: viewNew, thinking: viewThinking, result: viewResult, paywall: viewPaywall, account: viewAccount }[S.view]();
+  app.innerHTML = { home: viewHome, new: viewNew, thinking: viewThinking, result: viewResult, credits: viewCredits, account: viewAccount }[S.view]();
   if (!keepScroll) window.scrollTo(0, 0);
 }
-function go(view) { S.view = view; S.error = ""; if (view !== "paywall") S.notice = ""; render(); }
+function go(view) { S.view = view; S.error = ""; if (view !== "credits" && view !== "account") S.notice = ""; render(); }
 
 // ---------- actions ----------
 async function scanCode(file) {
-  if (!q().pro) { S.notice = t("proOnly"); go("paywall"); return; }
+  if (!S.me.user) { S.notice = t("scanLogin"); S.view = "account"; render(); return; }
   S.scan = { busy: true, codes: null, msg: "" }; render(true);
   let image;
   try { image = await compressImage(file); } catch (_) { S.scan = { busy: false, codes: null, msg: t("errors").photoBad }; render(true); return; }
   const r = await api("/api/scan-code", { image });
   if (!r.ok) {
-    if (r.data.error === "pro_required") { S.scan.busy = false; S.notice = t("proOnly"); go("paywall"); return; }
+    if (r.data.error === "login_required") { S.scan.busy = false; S.notice = t("scanLogin"); S.view = "account"; render(); return; }
     S.scan = { busy: false, codes: null, msg: r.status === 0 ? t("errors").network : t("errors").scan_failed }; render(true); return;
   }
   const codes = (r.data.codes || []).map(c => c.code).filter(Boolean);
@@ -820,7 +881,7 @@ async function codeCheck(f, dc) {
 
 // Shared error handling for the quick and the extended search. Returns true when handled.
 function researchError(cur, r, show) {
-  if (r.data.error === "no_credits") { cur.status = "out"; if (S.current === cur) { S.notice = ""; go("paywall"); } return; }
+  if (r.data.error === "no_credits") { cur.status = "out"; if (S.current === cur) goBuy(); return; }
   if (r.data.error === "invalid_code" || r.data.error === "need_code_or_text") { S.form = cur.form; S.view = "new"; S.error = r.data.error === "invalid_code" ? t("badCode") : t("needInput"); render(); return; }
   cur.status = "error";
   cur.err = r.status === 0 ? t("errors").network : t("rerrors")[r.data.error] || t("rerrors").research_failed;
@@ -830,23 +891,23 @@ function researchError(cur, r, show) {
 async function runResearch(cur) {
   const show = () => { if (S.current === cur && S.view === "result") render(true); };
   if (!canCheck()) { cur.status = "out"; show(); return; }
-  cur.status = "loading"; cur.canExtend = false; show();
+  cur.status = "loading"; cur.canExtend = false; cur.extendIncluded = false; show();
   const r = await diagnoseResearch(cur.form, cur.dc);
-  if (r.data.quota) S.me.quota = r.data.quota;
+  setCredits(r.data.credits);
   if (!r.ok) { cur.canExtend = Boolean(r.data.can_extend); researchError(cur, r, show); return; }
   Object.assign(cur, { status: "done", d: r.data.diagnosis, cached: Boolean(r.data.cached), researchedAt: r.data.researched_at, basic: { code: r.data.code || cur.basic.code, nhtsa: r.data.nhtsa || cur.basic.nhtsa } });
   // No confirmed definition: show what was found, offer the extended search, keep it out of Recent.
-  if (r.data.can_extend) { cur.canExtend = true; show(); return; }
+  if (r.data.can_extend) { cur.canExtend = true; cur.extendIncluded = Boolean(r.data.extend_included); show(); return; }
   finishResearch(cur, r.data.item);
 }
 
 // Extended search: background job on the server, polled every 4 seconds.
 async function extendResearch(cur) {
   const show = () => { if (S.current === cur && S.view === "result") render(true); };
-  if (!canCheck()) { cur.status = "out"; show(); return; }
+  if (!cur.extendIncluded && !canCheck()) { cur.status = "out"; show(); return; }
   cur.status = "extending"; cur.canExtend = false; show();
   let r = await diagnoseExtended(cur.form, cur.dc);
-  if (r.data.quota) S.me.quota = r.data.quota;
+  setCredits(r.data.credits);
   if (r.status === 202) {
     const id = r.data.jobId, until = Date.now() + 17 * 60_000;
     let misses = 0;
@@ -856,7 +917,7 @@ async function extendResearch(cur) {
       if (r.status === 0 && ++misses < 5 && Date.now() < until) continue; // brief connection loss: keep polling
       if (!r.ok || r.data.status === "done" || r.data.status === "failed" || Date.now() > until) break;
     }
-    if (r.data.quota) S.me.quota = r.data.quota;
+    setCredits(r.data.credits);
     if (r.ok && r.data.status === "failed") r = { ok: false, status: 502, data: { error: r.data.error } };
     else if (r.ok && r.data.status !== "done") r = { ok: false, status: 504, data: { error: "research_failed" } };
   }
@@ -885,7 +946,7 @@ async function diagnose() {
   if (f.code.trim() && !dc) { S.error = t("badCode"); render(true); return; }
   if (!dc && !f.text.trim() && !f.sound && !f.photo) { S.error = t("needInput"); render(true); return; }
   if (dc && !f.sound && !f.photo) { codeCheck(f, dc); return; }
-  if (!canCheck()) { go("paywall"); return; }
+  if (!canCheck()) { goBuy(); return; }
   LS.set("ecl-car", { make: f.make, model: f.model, year: f.year, engine: f.engine });
   S.error = ""; S.view = "thinking"; render();
 
@@ -898,14 +959,14 @@ async function diagnose() {
   }
   const r = await api("/api/diagnose", body);
   if (!r.ok) {
-    if (r.data.quota) S.me.quota = r.data.quota;
-    if (r.data.error === "quota_exceeded") { S.notice = ""; go("paywall"); return; }
+    setCredits(r.data.credits);
+    if (r.data.error === "no_credits") { goBuy(); return; }
     S.view = "new";
     S.error = r.status === 0 ? t("errors").network : r.data.error === "bad_input" ? badInputText(r.data.message) : t("errors").failed;
     render(); return;
   }
   const { item, meta, ...d } = r.data;
-  if (meta?.quota) S.me.quota = meta.quota;
+  setCredits(meta?.credits);
   const entry = { id: item.id, at: item.at, req: item.req, d };
   S.history.unshift(entry);
   if (!S.me.user) LS.set("ecl-history", S.history.slice(0, 20));
@@ -915,6 +976,18 @@ async function diagnose() {
   if (f.photoUrl) URL.revokeObjectURL(f.photoUrl);
   S.scan = { busy: false, codes: null, msg: "" };
   S.view = "result"; render();
+}
+
+// Buy a pack: the server returns the payment page; credits arrive after the payment is confirmed.
+async function buyPack(id) {
+  if (!S.me.user) { goBuy(); return; }
+  S.buying = true; S.notice = ""; render(true);
+  const r = await api("/api/credits/checkout", { packId: id });
+  S.buying = false;
+  if (r.ok && r.data.url) { location.href = r.data.url; return; }
+  if (r.data.error === "login_required") { goBuy(); return; }
+  S.notice = r.data.error === "payments_unavailable" || r.data.error === "pack_unavailable" ? t("payUnavailable") : r.status === 0 ? t("errors").network : t("checkoutFailed");
+  render(true);
 }
 
 async function startAuth(email) {
@@ -940,13 +1013,12 @@ app.addEventListener("click", async e => {
   if (!el || (el.type === "submit" && el.form)) return;
   if (el.dataset.lang) { S.lang = el.dataset.lang; LS.set("ecl-lang", S.lang); render(true); return; }
   if (el.dataset.go) {
-    if (el.dataset.go === "new" && !canCheck()) { S.notice = ""; go("paywall"); return; }
     go(el.dataset.go); return;
   }
   if (el.dataset.open != null) { S.current = S.history[+el.dataset.open]; go("result"); return; }
   if (el.dataset.sound) { S.form.sound = S.form.sound === el.dataset.sound ? null : el.dataset.sound; if (!S.form.sound) S.form.when = []; render(true); return; }
   if (el.dataset.when) { const w = el.dataset.when, a = S.form.when; S.form.when = a.includes(w) ? a.filter(x => x !== w) : [...a, w]; render(true); return; }
-  if (el.dataset.plan) { S.yearly = el.dataset.plan === "y"; render(true); return; }
+  if (el.dataset.buy) { buyPack(el.dataset.buy); return; }
   if (el.dataset.pick) { S.form.code = el.dataset.pick; render(true); return; }
   const act = el.dataset.act;
   if (act === "rmphoto") { if (S.form.photoUrl) URL.revokeObjectURL(S.form.photoUrl); S.form.photo = null; S.form.photoUrl = null; render(true); return; }
@@ -955,7 +1027,8 @@ app.addEventListener("click", async e => {
   if (act === "extend" && S.current?.kind === "research" && S.current.form) { extendResearch(S.current); return; }
   if (act === "install") { installApp(); return; }
   if (act === "installhide") { S.install = { hidden: true, help: false }; LS.set("ecl-install-hidden", true); render(true); return; }
-  if (act === "scanlocked") { S.notice = t("proOnly"); go("paywall"); return; }
+  if (act === "scanlogin") { S.notice = t("scanLogin"); S.view = "account"; render(); return; }
+  if (act === "buy-start") { goBuy(); return; }
   if (act === "authreset") { S.auth = { email: S.auth.email, sent: false, devLink: "", busy: false, err: "" }; render(true); return; }
   if (act === "logout") {
     await api("/api/auth/logout", {});

@@ -1,6 +1,7 @@
 // Builds the app's dependencies from environment variables. Used by the Netlify function and dev server.
 import { createDiagnoser, createScanner } from './diagnose.js';
 import { createEmailSender } from './email.js';
+import { createCheckoutFromEnv } from './payments.js';
 
 export function buildDeps(env) {
   const apiKey = env.ANTHROPIC_API_KEY?.trim() || undefined;
@@ -11,5 +12,6 @@ export function buildDeps(env) {
     diagnose: createDiagnoser({ apiKey, mock }),
     scan: createScanner({ apiKey, mock }),
     sendEmail: createEmailSender({ apiKey: env.RESEND_API_KEY, from: env.EMAIL_FROM }),
+    createCheckout: createCheckoutFromEnv(env) ?? undefined,
   };
 }
